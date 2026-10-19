@@ -1,0 +1,1890 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="AXON·EDGE predictive-maintenance simulation dashboard">
+  <title>AXON·EDGE — Live Predictive Maintenance Terminal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #06090b;
+      --panel: #0b1114;
+      --panel-2: #0e171b;
+      --line: #1b2a30;
+      --line-soft: #142126;
+      --amber: #ffb020;
+      --amber-deep: #c97f10;
+      --red: #ff4433;
+      --green: #2fe08b;
+      --cyan: #49d6dd;
+      --text: #dfe9ec;
+      --muted: #6c858e;
+      --muted-2: #486067;
+      --disp: 'Chakra Petch', sans-serif;
+      --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background-color: var(--ink);
+      color: var(--text);
+      background-image:
+        linear-gradient(rgba(255,176,32,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,176,32,.035) 1px, transparent 1px);
+      background-size: 56px 56px;
+      font: 13px/1.65 var(--mono);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      pointer-events: none;
+      opacity: .04;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+    ::selection { background: var(--amber); color: #0a0a0a; }
+    h1, h2, h3, h4 { margin: 0; font-family: var(--disp); font-weight: 700; letter-spacing: -.01em; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    canvas { display: block; width: 100%; }
+
+    /* shell */
+    .rail { position: sticky; top: 0; z-index: 50; background: rgba(6,9,11,.9); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+    .rail-in, .max { max-width: 1620px; margin: 0 auto; padding-left: clamp(14px, 2.6vw, 38px); padding-right: clamp(14px, 2.6vw, 38px); }
+    .rail-in { height: 52px; display: flex; align-items: center; gap: 22px; overflow: hidden; }
+    .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .brand-mark { width: 26px; height: 26px; position: relative; }
+    .brand-mark i { position: absolute; width: 10px; height: 10px; background: var(--amber); }
+    .brand-mark i:nth-child(1) { left: 0; top: 0; }
+    .brand-mark i:nth-child(2) { right: 0; top: 0; opacity: .45; }
+    .brand-mark i:nth-child(3) { left: 0; bottom: 0; opacity: .45; }
+    .brand-mark i:nth-child(4) { right: 0; bottom: 0; }
+    .brand b { display: block; font: 700 16px var(--disp); letter-spacing: .12em; }
+    .brand span { display: block; margin-top: -3px; color: var(--muted); font-size: 9px; letter-spacing: .28em; }
+    .rail-items { display: flex; gap: 20px; margin-left: auto; color: var(--muted); font-size: 10px; letter-spacing: .16em; white-space: nowrap; }
+    .rail-items b { color: var(--text); font-weight: 500; }
+    .rail-ticker { min-width: 220px; padding-left: 20px; border-left: 1px solid var(--line); color: var(--amber); font-size: 10px; letter-spacing: .12em; white-space: nowrap; overflow: hidden; }
+    .rail-ticker span { display: inline-block; animation: ticker 26s linear infinite; }
+    @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-45%); } }
+    .clock { color: var(--amber); font: 12px var(--disp); letter-spacing: .14em; }
+    .dot { display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; vertical-align: middle; }
+    .dot.g { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .dot.a { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+    .dot.r { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .pulse { animation: pulse 1.8s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+    .scroll-bar { height: 2px; background: rgba(255,176,32,.1); }
+    .scroll-bar i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--amber), var(--red)); box-shadow: 0 0 10px rgba(255,176,32,.55); }
+
+    /* hero */
+    .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+    #heroCanvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .5; }
+    .hero-in { position: relative; z-index: 1; padding-top: clamp(48px, 7vw, 96px); padding-bottom: clamp(36px, 5vw, 64px); }
+    .eyebrow { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; color: var(--amber); font-size: 10px; letter-spacing: .3em; }
+    .eyebrow .bar { flex: 0 0 62px; height: 1px; background: var(--amber); opacity: .6; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 72px); align-items: end; }
+    .hero h1 { font-size: clamp(38px, 7vw, 102px); line-height: .92; letter-spacing: -.028em; text-transform: uppercase; }
+    .hero h1 em { color: var(--amber); font-style: normal; }
+    .hero h1 .thin { color: var(--muted); font-weight: 400; }
+    .hero-sub { max-width: 62ch; margin: 26px 0 0; color: #a8bcc2; font-size: 14px; line-height: 1.85; font-weight: 300; }
+    .hero-sub b { color: var(--text); font-weight: 500; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+    .btn, .mini, .filter, .fault { border: 1px solid var(--amber); background: var(--amber); color: #0a0a0a; font-family: var(--disp); font-weight: 600; letter-spacing: .18em; text-transform: uppercase; transition: .22s ease; }
+    .btn { padding: 14px 26px; font-size: 11px; }
+    .btn:hover, .mini:hover, .filter:hover, .fault:hover { transform: translateY(-2px); letter-spacing: .28em; }
+    .btn.ghost, .mini.ghost, .filter.ghost { background: transparent; color: var(--amber); }
+    .btn.ghost:hover, .mini.ghost:hover { background: var(--amber); color: #0a0a0a; }
+    .hero-side { display: flex; flex-direction: column; padding-left: clamp(18px, 2.4vw, 34px); border-left: 1px solid var(--line); }
+    .hero-side .row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+    .hero-side .row:first-child { padding-top: 0; }
+    .hero-side .row:last-child { border-bottom: 0; }
+    .k { color: var(--muted); font-size: 9px; letter-spacing: .22em; }
+    .hero-side .v { font: 700 clamp(26px, 2.9vw, 40px)/1 var(--disp); letter-spacing: -.02em; }
+    .hero-side .v.a, .a { color: var(--amber); }
+    .hero-side .v.g, .g { color: var(--green); }
+    .stamp { display: inline-block; position: relative; margin-top: 26px; padding: 12px 22px 12px 18px; border: 1px solid rgba(255,176,32,.42); border-left: 3px solid var(--amber); background: rgba(255,176,32,.05); }
+    .stamp::before { content: ''; position: absolute; inset: 3px; border: 1px solid rgba(255,176,32,.2); pointer-events: none; }
+    .stamp b { display: block; color: var(--amber); font: 14px/1.3 var(--disp); letter-spacing: .28em; }
+    .stamp span { display: block; margin-top: 4px; color: var(--muted); font-size: 8.5px; letter-spacing: .25em; }
+    .kpis { display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--line); background: rgba(11,17,20,.6); }
+    .kpi { position: relative; padding: 18px clamp(12px, 2vw, 26px); border-right: 1px solid var(--line-soft); }
+    .kpi:last-child { border-right: 0; }
+    .kpi .v { display: block; margin-top: 6px; font: 600 clamp(18px, 1.8vw, 25px) var(--disp); }
+    .kpi .v u { margin-left: 4px; color: var(--muted); font: 11px var(--mono); text-decoration: none; }
+
+    /* common sections */
+    .pipeline { border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,176,32,.05), transparent); }
+    .pipe-in { display: flex; align-items: center; flex-wrap: wrap; padding-top: 22px; padding-bottom: 22px; }
+    .node { display: flex; align-items: center; gap: 12px; padding-right: 20px; }
+    .node .ic { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--amber); color: var(--amber); font-size: 11px; }
+    .node b { display: block; font: 12px var(--disp); letter-spacing: .16em; text-transform: uppercase; }
+    .node span { color: var(--muted); font-size: 9px; letter-spacing: .13em; }
+    .flow { flex: 1; min-width: 30px; height: 1px; margin: 0 14px; overflow: hidden; background: var(--line); }
+    .flow::after { content: ''; display: block; width: 46%; height: 3px; background: repeating-linear-gradient(90deg, var(--amber) 0 8px, transparent 8px 16px); animation: flow 1.5s linear infinite; }
+    @keyframes flow { from { transform: translateX(-100%); } to { transform: translateX(320%); } }
+    .wrap { padding-top: clamp(28px, 4vw, 56px); padding-bottom: 80px; }
+    .section-head { display: flex; align-items: baseline; gap: 16px; margin: 48px 0 18px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+    .section-head .num { color: var(--amber); font: 600 11px var(--disp); letter-spacing: .28em; }
+    .section-head h2 { font-size: 15px; letter-spacing: .22em; text-transform: uppercase; }
+    .section-head .tail { margin-left: auto; color: var(--muted); font-size: 9px; letter-spacing: .18em; }
+    .hazard { height: 6px; margin-bottom: -2px; opacity: .5; background-image: repeating-linear-gradient(45deg, rgba(255,176,32,.6) 0 8px, transparent 8px 16px); }
+    .grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .s5 { grid-column: span 5; } .s6 { grid-column: span 6; } .s7 { grid-column: span 7; } .s8 { grid-column: span 8; } .s12 { grid-column: span 12; }
+    .panel { position: relative; height: 100%; overflow: hidden; padding: 18px; border: 1px solid var(--line); background: var(--panel); transition: border-color .3s ease; }
+    .panel:hover { border-color: rgba(255,176,32,.34); }
+    .panel::before { content: ''; position: absolute; top: -1px; left: -1px; width: 11px; height: 11px; border-top: 2px solid var(--amber); border-left: 2px solid var(--amber); opacity: .75; }
+    .panel::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-right: 2px solid var(--amber); border-bottom: 2px solid var(--amber); opacity: .4; }
+    .panel-h { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .panel-h h3 { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; }
+    .tag { margin-left: auto; padding: 3px 9px; border: 1px solid var(--line); color: var(--muted); font-size: 9px; letter-spacing: .16em; white-space: nowrap; }
+    .tag.live { border-color: rgba(47,224,139,.35); color: var(--green); }
+    .tag.warn { border-color: rgba(255,176,32,.35); color: var(--amber); }
+    .tag.crit { border-color: rgba(255,68,51,.4); color: var(--red); }
+    .chart-box { position: relative; overflow: hidden; border: 1px solid var(--line-soft); background: #081013; }
+    .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 11px; color: var(--muted); font-size: 9px; letter-spacing: .13em; }
+    .legend i { display: inline-block; width: 16px; height: 2px; margin-right: 7px; vertical-align: middle; }
+    .muted { color: var(--muted); }
+    .mono-small { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+
+    /* workflow */
+    .stages { display: flex; align-items: stretch; flex-wrap: wrap; }
+    .stage { flex: 1; min-width: 150px; padding: 16px 14px; border: 1px solid var(--line); background: #0a1215; transition: .4s ease; }
+    .stage .ring { display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 12px; border: 1px solid var(--muted-2); border-radius: 50%; color: var(--muted); font: 11px var(--disp); }
+    .stage .stg-t { font: 11px var(--disp); letter-spacing: .13em; text-transform: uppercase; }
+    .stage .stg-s { margin-top: 6px; color: var(--muted); font-size: 9px; line-height: 1.65; letter-spacing: .08em; }
+    .stage .stg-bar { height: 3px; margin-top: 13px; overflow: hidden; background: #122226; }
+    .stage .stg-bar i { display: block; width: 0; height: 100%; background: var(--amber); transition: width .7s ease; }
+    .stage.done { border-color: rgba(47,224,139,.32); background: rgba(47,224,139,.045); }
+    .stage.done .ring { border-color: var(--green); color: var(--green); background: rgba(47,224,139,.14); }
+    .stage.done .stg-bar i { width: 100%; background: var(--green); }
+    .stage.active { border-color: var(--amber); background: rgba(255,176,32,.1); transform: translateY(-3px); }
+    .stage.active .ring { border-color: var(--amber); color: var(--amber); box-shadow: 0 0 0 0 rgba(255,176,32,.5); animation: ring 1.9s ease-out infinite; }
+    .stage.active .stg-bar i { width: 58%; }
+    @keyframes ring { to { box-shadow: 0 0 0 14px rgba(255,176,32,0); } }
+    .conn { display: grid; place-items: center; flex: 0 0 26px; color: var(--muted-2); }
+    .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-top: 16px; }
+    .mini { padding: 8px 13px; border-color: var(--line); background: transparent; color: var(--muted); font-size: 9px; }
+    .mini.solid { border-color: var(--amber); background: var(--amber); color: #0a0a0a; }
+    .timeline { position: relative; max-height: 330px; padding-left: 20px; overflow-y: auto; }
+    .timeline::before { content: ''; position: absolute; top: 6px; bottom: 6px; left: 5px; width: 1px; background: var(--line); }
+    .timeline-item { position: relative; padding: 0 0 17px 6px; }
+    .timeline-item::before { content: ''; position: absolute; top: 5px; left: -19px; width: 9px; height: 9px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 9px rgba(255,176,32,.65); }
+    .timeline-item.ok::before { background: var(--green); box-shadow: 0 0 9px rgba(47,224,139,.65); }
+    .timeline-item.crit::before { background: var(--red); box-shadow: 0 0 9px rgba(255,68,51,.7); }
+    .timeline-item .t { color: var(--muted); font-size: 8.5px; letter-spacing: .15em; }
+    .timeline-item .m { margin-top: 3px; color: #b7c9ce; font-size: 10.5px; line-height: 1.65; }
+
+    /* detector */
+    .gauge-wrap { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; }
+    .gauge-wrap canvas { width: 220px; max-width: 100%; flex: 0 0 220px; }
+    .gauge-legend { flex: 1; min-width: 180px; }
+    .score-cap { margin-bottom: 6px; color: var(--muted); font-size: 9px; letter-spacing: .24em; }
+    .score-big { font: 700 clamp(46px, 5.6vw, 76px)/.9 var(--disp); letter-spacing: -.035em; }
+    .score-big.hot { color: var(--red); } .score-big.warm { color: var(--amber); } .score-big.cool { color: var(--green); }
+    .chiplets { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .chiplet { padding: 7px 11px; border: 1px solid var(--line); color: var(--muted); font-size: 8.5px; letter-spacing: .14em; }
+    .chiplet b { display: block; margin-top: 3px; color: var(--text); font: 15px var(--disp); letter-spacing: .02em; }
+    .feature-row { display: grid; grid-template-columns: 1.2fr .8fr 1fr .6fr; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px dashed var(--line-soft); font-size: 9px; }
+    .feature-row:last-child { border-bottom: 0; }
+    .feature-row .name { color: var(--muted); letter-spacing: .1em; }
+    .feature-row .value { color: var(--text); text-align: right; }
+    .feature-row .band { color: var(--muted-2); font-size: 8px; white-space: nowrap; }
+    .state { justify-self: end; padding: 2px 5px; border: 1px solid var(--line); color: var(--muted); font-size: 7.5px; letter-spacing: .1em; }
+    .state.ok { border-color: rgba(47,224,139,.35); color: var(--green); }
+    .state.warn { border-color: rgba(255,176,32,.35); color: var(--amber); }
+    .state.crit { border-color: rgba(255,68,51,.4); color: var(--red); }
+    .band-track { grid-column: 1 / -1; height: 4px; overflow: hidden; background: #0c1619; }
+    .band-track i { display: block; height: 100%; background: var(--green); transition: width .35s ease, background .35s ease; }
+    .threshold-box { margin-top: 14px; padding: 12px; border: 1px solid var(--line); background: #0a1215; }
+    .threshold-box p { margin: 8px 0 0; color: var(--muted); font-size: 9px; line-height: 1.7; }
+    .slider-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; margin: 12px 0; }
+    .slider-row label { color: var(--muted); font-size: 9px; letter-spacing: .18em; }
+    .slider-row b { color: var(--amber); font: 14px var(--disp); }
+    input[type=range] { width: 100%; height: 3px; appearance: none; background: var(--line); outline: none; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; appearance: none; border: 2px solid var(--ink); border-radius: 0; background: var(--amber); transform: rotate(45deg); }
+    input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 2px solid var(--ink); border-radius: 0; background: var(--amber); }
+    .alert-box { position: relative; display: flex; flex-direction: column; gap: 16px; height: 100%; padding: 20px; border: 1px solid var(--line); background: #0a1215; }
+    .alert-box.alarmed { border-color: var(--red); animation: flash 1.1s ease-in-out infinite; }
+    @keyframes flash { 50% { box-shadow: 0 0 32px rgba(255,68,51,.22); } }
+    .relay { display: flex; align-items: center; gap: 18px; }
+    .led { position: relative; flex-shrink: 0; width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 50%; background: #0d1b14; box-shadow: inset 0 0 14px rgba(47,224,139,.25); }
+    .led::after { content: ''; position: absolute; inset: 11px; border-radius: 50%; background: var(--green); opacity: .85; }
+    .alarm .led { border-color: var(--red); background: #26100c; box-shadow: inset 0 0 18px rgba(255,68,51,.4), 0 0 26px rgba(255,68,51,.45); }
+    .alarm .led::after { background: var(--red); animation: blink .85s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: .12; } }
+    .relay-state { color: var(--green); font: 20px var(--disp); letter-spacing: .14em; text-transform: uppercase; }
+    .alarm .relay-state { color: var(--red); }
+    .relay-sub { margin-top: 2px; color: var(--muted); font-size: 9px; letter-spacing: .18em; }
+    .out-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: auto; }
+    .out { padding: 11px; border: 1px solid var(--line); text-align: center; }
+    .out .v { margin-top: 3px; font: 17px var(--disp); letter-spacing: .06em; }
+    .out.trigger { border-color: var(--red); background: rgba(255,68,51,.1); }
+    .out.trigger .v { color: var(--red); }
+
+    /* tracking and data cards */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 14px; border: 1px solid var(--line); background: var(--line); }
+    .stat-grid > div { padding: 13px; background: var(--panel); }
+    .stat-grid .value { margin-top: 4px; font: 19px var(--disp); }
+    .fleet { display: grid; grid-template-columns: repeat(auto-fit, minmax(216px, 1fr)); gap: 12px; }
+    .fleet-card { position: relative; overflow: hidden; padding: 14px; border: 1px solid var(--line); background: #0a1215; }
+    .fleet-card::after { content: ''; position: absolute; right: 0; bottom: 0; left: 0; width: var(--health, 80%); height: 2px; background: linear-gradient(90deg, var(--green), var(--amber)); }
+    .fleet-card.warn::after { background: linear-gradient(90deg, var(--amber), var(--red)); }
+    .fleet-id { font: 14px var(--disp); letter-spacing: .16em; }
+    .fleet-sub { margin-top: 3px; color: var(--muted); font-size: 8.5px; letter-spacing: .2em; }
+    .fleet-row { display: flex; align-items: baseline; justify-content: space-between; margin-top: 10px; }
+    .fleet-health { font: 27px var(--disp); }
+    .pill { display: inline-block; padding: 3px 9px; border: 1px solid; font-size: 8px; letter-spacing: .16em; }
+    .pill.ok { border-color: rgba(47,224,139,.42); background: rgba(47,224,139,.1); color: var(--green); }
+    .pill.high { border-color: rgba(255,176,32,.45); background: rgba(255,176,32,.1); color: var(--amber); }
+    .pill.crit { border-color: rgba(255,68,51,.5); background: rgba(255,68,51,.12); color: var(--red); }
+    .pill.open { border-color: rgba(255,176,32,.45); background: rgba(255,176,32,.08); color: var(--amber); }
+    .calendar { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; margin-top: 10px; }
+    .calendar div { aspect-ratio: 1; border: 1px solid var(--line-soft); background: #101c20; }
+    .calendar div.l1 { border-color: rgba(255,176,32,.3); background: rgba(255,176,32,.28); }
+    .calendar div.l2 { border-color: rgba(255,176,32,.5); background: rgba(255,176,32,.62); }
+    .calendar div.l3 { border-color: rgba(255,68,51,.6); background: rgba(255,68,51,.72); }
+    .calendar-label { display: flex; justify-content: space-between; margin-top: 8px; color: var(--muted); font-size: 8px; letter-spacing: .18em; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line-soft); font-size: 10px; }
+    .kv:last-child { border-bottom: 0; }
+    .kv .v { font-weight: 500; letter-spacing: .04em; text-align: right; }
+    .meter { margin: 12px 0; }
+    .meter .label { display: flex; justify-content: space-between; margin-bottom: 6px; color: var(--muted); font-size: 9px; letter-spacing: .18em; }
+    .meter .label b { color: var(--text); font-weight: 500; }
+    .track { height: 5px; overflow: hidden; border: 1px solid var(--line-soft); background: #0c1619; }
+    .track i { display: block; width: 0; height: 100%; background: linear-gradient(90deg, var(--amber-deep), var(--amber)); transition: width .5s ease; }
+    .track.g i { background: linear-gradient(90deg, #1b8a58, var(--green)); }
+
+    /* controls and ledger */
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+    .control .label { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-size: 9px; letter-spacing: .18em; }
+    .control .label b { color: var(--amber); font: 13px var(--disp); }
+    .faults { display: flex; flex-wrap: wrap; gap: 8px; }
+    .fault { padding: 9px 13px; border-color: var(--line); background: transparent; color: var(--muted); font-size: 9px; }
+    .fault.on { border-color: var(--amber); background: var(--amber); color: #0a0a0a; }
+    .fault.on.danger { border-color: var(--red); background: var(--red); color: white; }
+    .terminal { height: 280px; overflow-y: auto; padding: 14px 16px; border: 1px solid var(--line); background: #060c0e; font-size: 10px; line-height: 1.85; }
+    .line { display: flex; gap: 12px; opacity: 0; animation: line-in .35s ease forwards; white-space: nowrap; }
+    @keyframes line-in { to { opacity: 1; } }
+    .line .ts { flex-shrink: 0; color: var(--muted-2); }
+    .line .level { flex: 0 0 48px; letter-spacing: .1em; }
+    .line .msg { overflow: hidden; color: #9fb4ba; text-overflow: ellipsis; }
+    .line.info .level { color: var(--cyan); } .line.warn .level { color: var(--amber); } .line.fault .level { color: var(--red); } .line.ok .level { color: var(--green); }
+    .line.fault .msg { color: #e8b3ac; } .line.warn .msg { color: #d8c39c; }
+    .ledger-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .filter { padding: 8px 13px; border-color: var(--line); background: transparent; color: var(--muted); font-size: 9px; }
+    .filter.on { border-color: var(--amber); background: var(--amber); color: #0a0a0a; }
+    .search { flex: 1; min-width: 180px; padding: 9px 12px; outline: none; border: 1px solid var(--line); background: #0a1215; color: var(--text); font-size: 10px; letter-spacing: .08em; }
+    .search:focus { border-color: var(--amber); }
+    .table-wrap { max-height: 430px; overflow: auto; border: 1px solid var(--line); }
+    table { width: 100%; border-collapse: collapse; }
+    .ledger { min-width: 960px; font-size: 10px; }
+    .ledger th { position: sticky; top: 0; z-index: 2; padding: 12px; border-bottom: 1px solid var(--line); background: #0e1a1e; color: var(--muted); font-size: 8px; font-weight: 400; letter-spacing: .18em; text-align: left; white-space: nowrap; }
+     .ledger td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); letter-spacing: .03em; white-space: nowrap; }
+     .ledger tr:hover td { background: rgba(255,176,32,.05); }
+     .ledger tr.selected td { background: rgba(255,176,32,.09); box-shadow: inset 0 1px 0 rgba(255,176,32,.22), inset 0 -1px 0 rgba(255,176,32,.22); }
+    .ledger .id-cell { color: var(--amber); font-family: var(--disp); letter-spacing: .12em; }
+    .action { margin-right: 5px; padding: 5px 9px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: 8px var(--disp); letter-spacing: .12em; }
+     .action:hover { border-color: var(--amber); color: var(--amber); }
+     .detail td { padding: 10px 12px 14px; color: var(--muted); font-size: 9px; line-height: 1.8; white-space: normal; }
+
+     /* incident investigation */
+     .incident-investigation { margin-top: 16px; }
+     .incident-tabs { display: flex; gap: 8px; max-width: 100%; padding: 2px 1px 14px; overflow-x: auto; border-bottom: 1px solid var(--line); scrollbar-color: var(--amber-deep) var(--panel); }
+     .incident-tab { flex: 0 0 auto; min-width: 178px; padding: 10px 12px; border: 1px solid var(--line); background: #0a1215; color: var(--muted); text-align: left; transition: .22s ease; }
+     .incident-tab:hover, .incident-tab.selected { border-color: var(--amber); background: rgba(255,176,32,.1); color: var(--text); transform: translateY(-1px); }
+     .incident-tab .tab-top { display: flex; align-items: center; gap: 8px; }
+     .incident-tab .tab-id { color: var(--amber); font: 12px var(--disp); letter-spacing: .12em; }
+     .incident-tab .tab-status { margin-left: auto; font-size: 8px; letter-spacing: .14em; }
+     .incident-tab .tab-status.open { color: var(--red); }
+     .incident-tab .tab-status.closed { color: var(--green); }
+     .incident-tab .tab-type { display: block; margin-top: 5px; overflow: hidden; color: var(--text); font: 10px var(--disp); letter-spacing: .12em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+     .incident-tab .tab-meta { display: block; margin-top: 4px; color: var(--muted); font-size: 8px; letter-spacing: .09em; }
+     .incident-empty { padding: 34px 20px; border: 1px dashed rgba(255,176,32,.35); background: rgba(255,176,32,.035); text-align: center; }
+     .incident-empty .empty-title { color: var(--amber); font: 14px var(--disp); letter-spacing: .22em; }
+     .incident-empty p { max-width: 62ch; margin: 8px auto 0; color: var(--muted); font-size: 9px; letter-spacing: .08em; }
+     .incident-detail { padding-top: 18px; }
+     .incident-detail[hidden] { display: none; }
+     .investigation-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 16px; padding-bottom: 15px; border-bottom: 1px solid var(--line); }
+     .investigation-head h4 { margin-top: 4px; color: var(--text); font-size: 20px; letter-spacing: .12em; text-transform: uppercase; }
+     .investigation-sub { margin-top: 4px; color: var(--muted); font-size: 9px; letter-spacing: .15em; }
+     .investigation-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+     .investigation-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+     .investigation-card { grid-column: span 4; min-width: 0; padding: 14px; border: 1px solid var(--line); background: #0a1215; }
+     .investigation-card.wide { grid-column: span 8; }
+     .investigation-card.full { grid-column: span 12; }
+     .investigation-card h5 { margin: 0 0 10px; color: var(--amber); font: 10px var(--disp); letter-spacing: .2em; text-transform: uppercase; }
+     .investigation-kv { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px dashed var(--line-soft); font-size: 9px; }
+     .investigation-kv:last-child { border-bottom: 0; }
+     .investigation-kv .k { flex: 0 0 auto; }
+     .investigation-kv .v { color: var(--text); font-weight: 500; letter-spacing: .04em; text-align: right; word-break: break-word; }
+     .investigation-kv .v.a { color: var(--amber); }
+     .investigation-kv .v.g { color: var(--green); }
+     .investigation-kv .v.r { color: var(--red); }
+     .investigation-features { display: grid; gap: 1px; }
+     .investigation-feature { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(78px, .8fr) minmax(120px, 1fr) auto; align-items: center; gap: 9px; padding: 8px 0; border-bottom: 1px dashed var(--line-soft); font-size: 9px; }
+     .investigation-feature:last-child { border-bottom: 0; }
+     .investigation-feature .feature-name { color: var(--muted); letter-spacing: .1em; }
+     .investigation-feature .feature-value { color: var(--text); }
+     .investigation-feature .feature-band { color: var(--muted-2); font-size: 8px; white-space: nowrap; }
+     .investigation-feature .state { justify-self: end; }
+     .investigation-feature .feature-track { grid-column: 1 / -1; height: 3px; overflow: hidden; background: #101d20; }
+     .investigation-feature .feature-track i { display: block; height: 100%; background: var(--green); }
+     .investigation-feature.outside .feature-track i { background: var(--amber); }
+     .investigation-feature.critical .feature-track i { background: var(--red); }
+     .investigation-events { max-height: 320px; overflow-y: auto; }
+     .investigation-event { display: grid; grid-template-columns: 155px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line-soft); font-size: 9px; }
+     .investigation-event:last-child { border-bottom: 0; }
+     .investigation-event .event-time { color: var(--muted); letter-spacing: .08em; }
+     .investigation-event .event-message { color: #b7c9ce; line-height: 1.6; }
+     .investigation-note { color: var(--muted); font-size: 9px; letter-spacing: .06em; }
+
+     /* dataset intake and footer */
+    .dataset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 11px; }
+    .dataset { padding: 14px; border: 1px solid var(--line); background: #0a1215; cursor: pointer; transition: .28s ease; }
+    .dataset:hover, .dataset.active { border-color: var(--amber); background: rgba(255,176,32,.09); transform: translateY(-2px); }
+    .dataset .title { font: 12px/1.35 var(--disp); letter-spacing: .1em; text-transform: uppercase; }
+    .dataset .meta { margin-top: 8px; color: var(--muted); font-size: 8.5px; letter-spacing: .13em; }
+    .dataset .bar { height: 3px; margin-top: 11px; overflow: hidden; background: #122024; }
+    .dataset .bar i { display: block; width: 0; height: 100%; background: var(--amber); transition: width .35s ease; }
+    .drop { margin-top: 12px; padding: 26px 20px; border: 1px dashed rgba(255,176,32,.42); background: rgba(255,176,32,.045); text-align: center; cursor: pointer; transition: .3s ease; }
+    .drop:hover, .drop.over { border-color: var(--amber); background: rgba(255,176,32,.11); }
+    .drop .big { color: var(--amber); font: 14px var(--disp); letter-spacing: .2em; text-transform: uppercase; }
+    .drop .small { margin-top: 8px; color: var(--muted); font-size: 9px; letter-spacing: .12em; }
+    .mapping { display: none; margin-top: 14px; font-size: 9px; }
+    .mapping th { padding: 7px 8px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 8px; font-weight: 400; letter-spacing: .18em; text-align: left; }
+    .mapping td { padding: 8px; border-bottom: 1px solid var(--line-soft); }
+    .mapping .channel { color: var(--amber); }
+    .switch { display: flex; align-items: center; gap: 11px; margin-top: 14px; color: var(--muted); font-size: 9px; letter-spacing: .16em; cursor: pointer; }
+    .switch .sw { position: relative; flex-shrink: 0; width: 38px; height: 19px; border: 1px solid var(--line); background: #0b1417; }
+    .switch .sw i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; background: var(--muted); transition: .25s ease; }
+    .switch.on { color: var(--text); }
+    .switch.on .sw { border-color: var(--amber); background: rgba(255,176,32,.16); }
+    .switch.on .sw i { left: 20px; background: var(--amber); }
+    footer { border-top: 1px solid var(--line); background: rgba(11,17,20,.55); }
+    .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 24px; padding-top: 34px; padding-bottom: 34px; color: var(--muted); font-size: 9px; letter-spacing: .18em; }
+    .foot b { color: var(--amber); font-family: var(--disp); letter-spacing: .26em; }
+    .reveal { opacity: 0; transform: translateY(18px); transition: .7s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+
+    @media (max-width: 1180px) {
+      .hero-grid { grid-template-columns: 1fr; }
+      .hero-side { padding-top: 22px; padding-left: 0; border-top: 1px solid var(--line); border-left: 0; }
+      .kpis { grid-template-columns: repeat(3, 1fr); }
+      .s3, .s4, .s5, .s6, .s7, .s8 { grid-column: span 12; }
+      .conn { display: none; }
+    }
+    @media (max-width: 720px) {
+      .rail-items, .rail-ticker { display: none; }
+      .kpis { grid-template-columns: repeat(2, 1fr); }
+      .hero h1 { font-size: clamp(32px, 10vw, 52px); }
+      .section-head .tail { display: none; }
+       .feature-row { grid-template-columns: 1.2fr .8fr .8fr; }
+       .feature-row .band { display: none; }
+       .feature-row .state { grid-column: 3; }
+       .investigation-head { flex-direction: column; }
+       .investigation-actions { justify-content: flex-start; }
+       .investigation-card, .investigation-card.wide { grid-column: span 12; }
+       .investigation-feature { grid-template-columns: 1.1fr .9fr auto; }
+       .investigation-feature .feature-band { display: none; }
+       .investigation-event { grid-template-columns: 1fr; gap: 3px; }
+     }
+  </style>
+</head>
+<body>
+  <header class="rail">
+    <div class="rail-in max">
+      <div class="brand">
+        <div class="brand-mark"><i></i><i></i><i></i><i></i></div>
+        <div><b>AXON·EDGE</b><span>MAINTENANCE TERMINAL</span></div>
+      </div>
+      <div class="rail-items">
+        <div><span class="dot g pulse"></span>NODE-07 <b id="nodeState">SIM ONLINE</b></div>
+        <div>WORKFLOW <b id="railWorkflow">ARMED</b></div>
+        <div>MODE <b id="railMode">SIMULATION</b></div>
+         <div>EDGE TARGET <b>ESP32-S3</b></div>
+      </div>
+      <div class="rail-ticker"><span id="ticker">&nbsp;SIMULATION · 1024 SAMPLE WINDOW · THRESHOLD 0.55 · ALERTS 0 ·&nbsp;&nbsp;SIMULATION · 1024 SAMPLE WINDOW · THRESHOLD 0.55 · ALERTS 0 ·</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+    <div class="scroll-bar"><i id="scrollProgress"></i></div>
+  </header>
+
+  <section class="hero">
+    <canvas id="heroCanvas"></canvas>
+    <div class="hero-in max">
+       <div class="eyebrow"><span class="bar"></span>BROWSER REPLAY / DATASET INTEGRATION / THRESHOLD-GATED FAULT WORKFLOW</div>
+      <div class="hero-grid">
+        <div>
+          <h1>Listen to the<br>machine <em>before</em><br><span class="thin">it breaks.</span></h1>
+           <p class="hero-sub">A browser-only simulation of the <b>sensor → feature → threshold pipeline</b>, with optional CSV / TSV replay. Healthy baseline bands are calculated first; every live feature is compared with its normal range. When the anomaly score crosses the configured threshold, AXON·EDGE raises an incident, energises the simulated relay, and starts the five-stage maintenance workflow. Firmware and hardware labels are reference targets only.</p>
+          <div class="hero-actions">
+            <button class="btn" id="injectFault">Inject Fault</button>
+            <button class="btn ghost" id="inspectWorkflow">Inspect Workflow</button>
+            <button class="btn ghost" id="resetSimulation">Reset Simulation</button>
+          </div>
+          <div class="stamp"><b>MAINTENANCE LOG · ACTIVE</b><span id="dateStamp">SESSION DATE —</span></div>
+        </div>
+        <div class="hero-side">
+          <div class="row"><span class="k">HEALTH INDEX</span><span class="v g" id="heroHealth">98.4</span></div>
+          <div class="row"><span class="k">ANOMALY SCORE</span><span class="v a" id="heroScore">0.021</span></div>
+          <div class="row"><span class="k">OPEN INCIDENTS</span><span class="v" id="heroOpen">0</span></div>
+          <div class="row"><span class="k">DECISION STATE</span><span class="v g" id="heroDecision">NOMINAL</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><span class="k">HEALTH INDEX</span><span class="v" id="kpiHealth">98.4<u>%</u></span></div>
+      <div class="kpi"><span class="k">REMAINING LIFE</span><span class="v" id="kpiRul">214<u>h</u></span></div>
+      <div class="kpi"><span class="k">MTBF</span><span class="v" id="kpiMtbf">—<u>h</u></span></div>
+      <div class="kpi"><span class="k">MTTR</span><span class="v" id="kpiMttr">—<u>min</u></span></div>
+      <div class="kpi"><span class="k">INCIDENTS LOGGED</span><span class="v" id="kpiIncidents">0<u>total</u></span></div>
+       <div class="kpi"><span class="k">INFERENCE PATH</span><span class="v">BROWSER<u>RULES</u></span></div>
+    </div>
+  </section>
+
+  <section class="pipeline" id="pipeline">
+    <div class="pipe-in max">
+       <div class="node"><div class="ic">01</div><div><b>CSV / SYNTHETIC INPUT</b><span>ACCEL XYZ · LABELS / DATASET</span></div></div><div class="flow"></div>
+      <div class="node"><div class="ic">02</div><div><b>Feature Window</b><span>RMS · KURT · CREST · HF</span></div></div><div class="flow"></div>
+      <div class="node"><div class="ic">03</div><div><b>Normal Bands</b><span>BASELINE μ ± 2.5σ</span></div></div><div class="flow"></div>
+      <div class="node"><div class="ic">04</div><div><b>Incident Ledger</b><span>DATE · CODE · SEVERITY</span></div></div><div class="flow"></div>
+      <div class="node"><div class="ic">05</div><div><b>Workflow + Relay</b><span>DISPATCH → VERIFY</span></div></div>
+    </div>
+  </section>
+
+  <main class="wrap max">
+    <div class="section-head reveal"><span class="num">01</span><h2>Workflow Orchestration</h2><span class="tail">DETECT → CLASSIFY → DISPATCH → SERVICE → VERIFY</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+      <section class="s8 reveal"><div class="panel">
+        <div class="panel-h"><h3>Fault Response Workflow</h3><span class="tag live" id="workflowTag"><span class="dot g pulse"></span>AUTO</span></div>
+        <div class="stages" id="stages">
+          <div class="stage" data-stage="0"><div class="ring">01</div><div class="stg-t">Anomaly Detected</div><div class="stg-s">Threshold gate trips and opens a dated incident record.</div><div class="stg-bar"><i></i></div></div><div class="conn">▸</div>
+          <div class="stage" data-stage="1"><div class="ring">02</div><div class="stg-t">Classify &amp; Verify</div><div class="stg-s">Signature matched to a fault code and severity assigned.</div><div class="stg-bar"><i></i></div></div><div class="conn">▸</div>
+          <div class="stage" data-stage="2"><div class="ring">03</div><div class="stg-t">Dispatch Work Order</div><div class="stg-s">A work order is staged for the maintenance crew.</div><div class="stg-bar"><i></i></div></div><div class="conn">▸</div>
+          <div class="stage" data-stage="3"><div class="ring">04</div><div class="stg-t">Field Service</div><div class="stg-s">Corrective action is recorded against the affected asset.</div><div class="stg-bar"><i></i></div></div><div class="conn">▸</div>
+          <div class="stage" data-stage="4"><div class="ring">05</div><div class="stg-t">Verify &amp; Close</div><div class="stg-s">Soak test clears the signal and seals the ledger record.</div><div class="stg-bar"><i></i></div></div>
+        </div>
+        <div class="tools"><button class="mini solid" id="advanceStage">Advance Stage</button><button class="mini" id="toggleAuto">Auto-Progression: ON</button><button class="mini" id="newIncident">Simulate New Incident</button><button class="mini" id="closeAll">Close All Open</button><span class="mono-small" style="margin-left:auto" id="workflowText">WORKFLOW IDLE · NO OPEN TICKET</span></div>
+      </div></section>
+      <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Workflow Timeline</h3><span class="tag warn" id="timelineTag">IDLE</span></div><div class="timeline" id="timeline"></div></div></section>
+    </div>
+
+     <div class="section-head reveal"><span class="num">02</span><h2>Edge Node · Live Telemetry</h2><span class="tail">BROWSER REPLAY · SENSOR / DATASET READY</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+      <section class="s8 reveal"><div class="panel"><div class="panel-h"><h3>Multi-channel Vibration Stream</h3><span class="tag live"><span class="dot g pulse"></span><span id="streamTag">LIVE SIM</span></span></div><div class="chart-box"><canvas id="waveCanvas" height="300"></canvas></div><div class="legend"><span><i style="background:#ffb020"></i>ACCEL X</span><span><i style="background:#49d6dd"></i>ACCEL Y</span><span><i style="background:#2fe08b"></i>ACCEL Z</span><span><i style="background:#ff4433"></i>TEMP °C</span><span style="margin-left:auto">EDGE WINDOW 1024 · MODE <b id="streamMode">SIMULATION</b></span></div></div></section>
+       <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Edge Compute Node</h3><span class="tag">REFERENCE</span></div><div class="chip" style="position:relative;aspect-ratio:16/9;margin:6px 0 16px;overflow:hidden;border:1px solid var(--line);background:radial-gradient(circle at 30% 40%,rgba(255,176,32,.1),transparent 55%),repeating-linear-gradient(90deg,rgba(255,176,32,.09) 0 1px,transparent 1px 9px),#080e11"><div style="position:absolute;inset:22% 26%;display:grid;place-items:center;border:1px solid var(--amber);background:rgba(255,176,32,.07);color:var(--amber);font:11px var(--disp);letter-spacing:.16em">ESP32-S3 · TARGET</div><div style="position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--amber),transparent);animation:flow 3.4s ease-in-out infinite"></div></div><div class="kv"><span class="k">CORE</span><span class="v">FIRMWARE REFERENCE</span></div><div class="kv"><span class="k">SENSOR BUS</span><span class="v">RAW CSV / TSV REPLAY</span></div><div class="kv"><span class="k">INFERENCE</span><span class="v a" id="inferenceValue">BROWSER THRESHOLD ENGINE</span></div><div class="kv"><span class="k">DATA SOURCE</span><span class="v" id="sourceValue">SYNTHETIC</span></div><div class="kv"><span class="k">DATASET LABEL</span><span class="v" id="datasetLabelValue">SYNTHETIC BASELINE</span></div><div class="meter"><div class="label"><span>JS WORKLOAD</span><b id="ramValue">41.2 KB</b></div><div class="track"><i id="ramBar" style="width:32%"></i></div></div><div class="meter"><div class="label"><span>CANVAS LOAD</span><b id="cpuValue">18 %</b></div><div class="track g"><i id="cpuBar" style="width:18%"></i></div></div></div></section>
+    </div>
+
+    <div class="section-head reveal"><span class="num">03</span><h2>Anomaly Engine · Threshold Gate</h2><span class="tail">NORMAL BAND → DRIFT → ALERT</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+      <section class="s5 reveal"><div class="panel"><div class="panel-h"><h3>Anomaly Score</h3><span class="tag" id="scoreTag">NOMINAL</span></div><div class="gauge-wrap"><canvas id="gaugeCanvas" width="220" height="190"></canvas><div class="gauge-legend"><div class="score-cap">THRESHOLD-GATED SCORE</div><div class="score-big cool" id="scoreBig">0.021</div><div class="chiplets"><div class="chiplet">ALERT THRESHOLD<b id="thresholdChip">0.55</b></div><div class="chiplet">FEATURES OUT<b id="featuresOut">0 / 8</b></div><div class="chiplet">CONFIDENCE<b id="confidenceValue">99.1 %</b></div></div></div></div><div class="chart-box" style="margin-top:16px"><canvas id="scoreCanvas" height="120"></canvas></div><div class="threshold-box"><div class="score-cap">HOW THE ALERT WORKS</div><div class="slider-row"><label for="threshold">GLOBAL ANOMALY THRESHOLD</label><b id="thresholdValue">0.55</b></div><input type="range" id="threshold" min="20" max="90" value="55"><p>Normal values are learned from the healthy simulation as <b>mean ± 2.5 standard deviations</b>. A live window raises an alert at or above θ. The signal must fall below 80% of θ for three clean windows before the relay releases.</p></div></div></section>
+       <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Normal Value Bands</h3><span class="tag warn" id="featureBandTag">8-D · LIVE</span></div><div id="featureList"></div></div></section>
+      <section class="s3 reveal"><div class="alert-box" id="alertBox"><div class="hazard"></div><div id="relayWrap"><div class="relay"><div class="led"></div><div><div class="relay-state" id="relayState">STANDBY</div><div class="relay-sub">GPIO12 · SIMULATED RELAY K1</div></div></div><svg viewBox="0 0 220 74" style="width:100%;height:74px"><line x1="12" y1="52" x2="62" y2="52" stroke="#2c4048" stroke-width="2"/><line x1="62" y1="52" x2="150" y2="26" stroke="#ffb020" stroke-width="2" id="armature"/><line x1="150" y1="26" x2="208" y2="26" stroke="#2c4048" stroke-width="2"/><circle cx="62" cy="52" r="4" fill="#ffb020"/><circle cx="150" cy="26" r="4" fill="#2c4048" id="contact"/><rect x="76" y="56" width="62" height="14" fill="none" stroke="#2c4048" stroke-width="1.5"/><text x="107" y="66" text-anchor="middle" fill="#486067" font-size="8" font-family="IBM Plex Mono">RELAY K1</text></svg></div><div class="out-grid"><div class="out trigger"><div class="k">ALERTS SESSION</div><div class="v" id="alertCount">0</div></div><div class="out"><div class="k">ACTIVE TICKET</div><div class="v" id="activeTicket">—</div></div></div><div class="hazard"></div></div></section>
+    </div>
+
+    <div class="section-head reveal"><span class="num">04</span><h2>Live Tracking</h2><span class="tail">HEALTH · RUL · ALERT DENSITY · FLEET</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+      <section class="s8 reveal"><div class="panel"><div class="panel-h"><h3>Health Index &amp; Remaining Useful Life</h3><span class="tag live">TRACKING</span></div><div class="chart-box"><canvas id="healthCanvas" height="268"></canvas></div><div class="legend"><span><i style="background:#2fe08b"></i>HEALTH INDEX %</span><span><i style="background:#ffb020"></i>RUL PROJECTION h</span><span><i style="background:#ff4433"></i>DEGRADATION ZONE</span></div></div></section>
+      <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Alert Density · 24 h</h3><span class="tag warn">HISTOGRAM</span></div><div class="chart-box"><canvas id="histCanvas" height="150"></canvas></div><div class="stat-grid"><div><div class="k">PEAK HOUR</div><div class="value" id="peakHour">—</div></div><div><div class="k">LAST 24 H</div><div class="value" id="last24">—</div></div><div><div class="k">OPEN TICKETS</div><div class="value" id="openTickets">0</div></div><div><div class="k">CLOSED</div><div class="value" id="closedTickets">0</div></div></div><div class="score-cap" style="margin-top:18px">INCIDENT DENSITY · LAST 14 DAYS</div><div class="calendar" id="calendar"></div><div class="calendar-label"><span>14 DAYS AGO</span><span>TODAY</span></div></div></section>
+      <section class="s12 reveal"><div class="panel"><div class="panel-h"><h3>Fleet Health Matrix</h3><span class="tag">4 ASSETS · LIVE</span></div><div class="fleet" id="fleet"></div></div></section>
+    </div>
+
+    <div class="section-head reveal"><span class="num">05</span><h2>Signal Domains</h2><span class="tail">TIME / FREQUENCY / OPERATING POINT</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+      <section class="s5 reveal"><div class="panel"><div class="panel-h"><h3>Time–Frequency Map</h3><span class="tag">SPECTROGRAM</span></div><div class="chart-box"><canvas id="specCanvas" height="240"></canvas></div><div class="legend"><span><i style="background:#ffb020"></i>LOW ENERGY</span><span><i style="background:#ff4433"></i>HIGH ENERGY</span></div></div></section>
+      <section class="s3 reveal"><div class="panel"><div class="panel-h"><h3>Amplitude Spectrum</h3><span class="tag">DFT</span></div><div class="chart-box"><canvas id="fftCanvas" height="240"></canvas></div><div class="legend"><span>1× / 2× / 3× ORDER LINES</span></div></div></section>
+      <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Motor Operating Point</h3><span class="tag live">CONTROL</span></div><div class="controls"><div class="control"><div class="label"><span>SHAFT SPEED</span><b id="rpmValue">1750</b></div><input type="range" id="rpm" min="600" max="3600" step="10" value="1750"></div><div class="control"><div class="label"><span>LOAD</span><b id="loadValue">62 %</b></div><input type="range" id="load" min="0" max="100" value="62"></div><div class="control"><div class="label"><span>NOISE FLOOR</span><b id="noiseValue">0.12</b></div><input type="range" id="noise" min="2" max="60" value="12"></div></div><div class="score-cap" style="margin:22px 0 10px">FAULT INJECTION / SCENARIO</div><div class="faults" id="faultButtons"><button class="fault on" data-fault="healthy">Healthy</button><button class="fault" data-fault="imbalance">Rotor Imbalance</button><button class="fault" data-fault="misalign">Misalignment</button><button class="fault" data-fault="bearing">Bearing Wear</button><button class="fault" data-fault="outerrace">Outer Race</button><button class="fault danger" data-fault="overheat">Overheating</button></div></div></section>
+    </div>
+
+    <div class="section-head reveal"><span class="num">06</span><h2>Incident Ledger</h2><span class="tail">DATED RECORDS · FILTERABLE · EXPORTABLE</span></div>
+    <div class="hazard"></div>
+     <div class="grid"><section class="s12 reveal"><div class="panel"><div class="panel-h"><h3>Fault History &amp; Work Orders</h3><span class="tag warn" id="ledgerCount">0 RECORDS</span></div><div class="ledger-tools"><button class="filter on" data-filter="all">All</button><button class="filter" data-filter="open">Open</button><button class="filter" data-filter="critical">Critical</button><button class="filter" data-filter="closed">Closed</button><input class="search" id="ledgerSearch" placeholder="SEARCH ID / CODE / TYPE / DATE..."><button class="mini solid" id="exportLedger">Export CSV</button></div><div class="table-wrap"><table class="ledger"><thead><tr><th>INCIDENT</th><th>DATE</th><th>TIME</th><th>ASSET</th><th>CODE</th><th>FAULT TYPE</th><th>SOURCE / LABEL</th><th>SEVERITY</th><th>SCORE</th><th>STAGE</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody id="ledgerBody"></tbody></table></div></div></section></div>
+     </div>
+
+     <div class="grid">
+       <section class="s12 reveal"><div class="panel incident-investigation" id="incidentInvestigation">
+         <div class="panel-h"><h3>Incident Investigation</h3><span class="tag" id="investigationTag">NO INCIDENTS</span></div>
+         <div class="incident-tabs" id="incidentTabs" role="tablist" aria-label="Incident records"></div>
+         <div class="incident-empty" id="incidentEmpty"><div class="empty-title">NO INCIDENT SELECTED</div><p>Threshold-crossing incidents will appear here with their alert-time feature, telemetry, source, relay, workflow, and event history snapshot.</p></div>
+         <div class="incident-detail" id="incidentDetail" role="tabpanel" hidden>
+           <div class="investigation-head">
+             <div><div class="score-cap">SELECTED INCIDENT</div><h4 id="incidentDetailTitle">—</h4><div class="investigation-sub" id="incidentDetailSubtitle">—</div></div>
+             <div class="investigation-actions"><span class="tag" id="incidentDetailStatus">—</span><button class="mini solid" id="downloadIncidentReport" type="button" disabled>Download JSON Report</button></div>
+           </div>
+           <div class="investigation-grid">
+             <div class="investigation-card"><h5>Incident / Asset</h5><div id="incidentSummary"></div></div>
+             <div class="investigation-card"><h5>Score / Threshold</h5><div id="incidentScoreSummary"></div></div>
+             <div class="investigation-card"><h5>Relay / Workflow</h5><div id="incidentWorkflowSummary"></div></div>
+             <div class="investigation-card wide"><h5>Alert-Time Features · Normal Bands</h5><div class="investigation-features" id="incidentFeatureSnapshot"></div></div>
+             <div class="investigation-card"><h5>Source / Dataset</h5><div id="incidentSourceSummary"></div></div>
+             <div class="investigation-card"><h5>Telemetry / Window</h5><div id="incidentTelemetrySummary"></div></div>
+             <div class="investigation-card full"><h5>Event History</h5><div class="investigation-events" id="incidentEventHistory"></div></div>
+           </div>
+         </div>
+       </div></section>
+     </div>
+
+     <div class="section-head reveal"><span class="num">07</span><h2>Dataset Intake</h2><span class="tail">DROP CSV / TSV · AUTO-MAP · REPLAY</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+       <section class="s7 reveal"><div class="panel"><div class="panel-h"><h3>Reference / User Data</h3><span class="tag warn" id="datasetTag">READY</span></div><div class="source-selector"><div class="source-selector-head"><b>Dataset source selector</b><span>OPTIONAL PROJECT-PATH REPLAY</span></div><div class="source-grid" id="sourceGrid"><button class="source-card active" type="button" data-source="synthetic"><span class="source-title">Browser Simulation</span><span class="source-meta">SYNTHETIC · THRESHOLD WORKFLOW · ALWAYS AVAILABLE</span><span class="source-path">no external file required</span><span class="source-status">ACTIVE</span></button><button class="source-card real" type="button" data-source="kirloskar"><span class="source-title">Kirloskar Motor Vibration</span><span class="source-meta">RAW · NORMAL CALIBRATION / REPLAY</span><span class="source-path">../data/kirloskar_vibration.csv</span><span class="source-status">LOAD PATH</span></button><button class="source-card real" type="button" data-source="bearing"><span class="source-title">Bearing Feature-Time CSV</span><span class="source-meta">9-D FEATURES · NORMAL_1 + 9 FAULT LABELS</span><span class="source-path">../data/bearing_features.csv</span><span class="source-status">LOAD PATH</span></button><button class="source-card real" type="button" data-source="gearbox"><span class="source-title">Gearbox B30Hz40 Replay</span><span class="source-meta">RAW A1..A4 · SOURCE-LABELLED ANOMALY BRING-UP</span><span class="source-path">../data/gearbox_b30hz40.csv</span><span class="source-status">LOAD PATH</span></button></div><div class="mode-banner sim" id="modeBanner"><span id="modeLabel">BROWSER SIMULATION / SYNTHETIC BASELINE</span><small id="modeDetail">CSV / TSV intake remains available</small></div><div class="source-status-line" id="sourceStatusLine">Synthetic stream is active. Select a project path to try a real-data replay; missing files fall back safely.</div></div><div class="dataset-grid" id="datasetGrid"><div class="dataset" data-fault="healthy" data-name="Healthy Baseline Simulation"><div class="title">Healthy Baseline<br>Simulation</div><div class="meta">SYNTHETIC · 8-D FEATURES · READY</div><div class="bar"><i></i></div></div><div class="dataset" data-fault="bearing" data-name="Bearing Wear Scenario"><div class="title">Bearing Wear<br>Scenario</div><div class="meta">SYNTHETIC · HIGH HF ENERGY</div><div class="bar"><i></i></div></div><div class="dataset" data-fault="outerrace" data-name="Outer Race Scenario"><div class="title">Outer Race<br>Scenario</div><div class="meta">SYNTHETIC · IMPACT SIGNATURE</div><div class="bar"><i></i></div></div><div class="dataset" data-fault="overheat" data-name="Thermal Drift Scenario"><div class="title">Thermal Drift<br>Scenario</div><div class="meta">SYNTHETIC · TEMP + VIBRATION</div><div class="bar"><i></i></div></div></div><div class="drop" id="dropZone"><div class="big">Drop CSV / TSV Here</div><div class="small">AUTO-DETECTS NUMERIC COLUMNS · MAPS TO ACCEL X/Y/Z + TEMP OR BEARING FEATURES · REPLAYS THROUGH THE THRESHOLD ENGINE</div><input type="file" id="fileInput" accept=".csv,.tsv,.txt" hidden></div><div class="switch on" id="scaleSwitch"><div class="sw"><i></i></div>ADAPTIVE SCALING — MAP DATASET RANGE ONTO REFERENCE ENVELOPE</div><div class="mapping" id="mapping"><table><thead><tr><th>SOURCE COLUMN</th><th>EDGE CHANNEL</th><th>MIN</th><th>MAX</th><th>TYPE</th></tr></thead><tbody id="mappingBody"></tbody></table></div></div></section>
+      <section class="s5 reveal"><div class="panel"><div class="panel-h"><h3>Event Stream</h3><span class="tag live"><span class="dot g pulse"></span>TAIL -F</span></div><div class="terminal" id="terminal"></div></div></section>
+    </div>
+
+     <div class="section-head reveal"><span class="num">08</span><h2>Model &amp; Threshold Card</h2><span class="tail">BROWSER THRESHOLD ENGINE · FIRMWARE TARGET REFERENCE</span></div>
+    <div class="hazard"></div>
+    <div class="grid">
+       <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Architecture Reference</h3><span class="tag">TARGET</span></div><div style="color:var(--amber);font:42px var(--disp)">1D <span style="color:var(--muted);font-size:.42em;letter-spacing:.2em">SIGNAL MODEL TARGET</span></div><div class="stat-grid"><div><div class="k">INPUT</div><div class="value">[1, 512, 1]</div></div><div><div class="k">OUTPUT</div><div class="value">ANOMALY SCORE</div></div><div><div class="k">DTYPE</div><div class="value a">DISPLAY FLOAT</div></div><div><div class="k">THRESHOLD</div><div class="value" id="modelThreshold">0.55</div></div></div><div class="kv" style="margin-top:14px"><span class="k">PIPELINE</span><span class="v">FFT → LOG1P → Z-SCORE</span></div><div class="kv"><span class="k">DETECTOR</span><span class="v">BROWSER THRESHOLD RULES</span></div></div></section>
+       <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Deployment Footprint</h3><span class="tag">REFERENCE</span></div><div class="kv"><span class="k">MODEL BINARY</span><span class="v a">FIRMWARE TARGET ONLY</span></div><div class="kv"><span class="k">TENSOR ARENA</span><span class="v">NOT USED IN BROWSER</span></div><div class="kv"><span class="k">WINDOW</span><span class="v">1024 SAMPLES / 1 kHz</span></div><div class="kv"><span class="k">ACCELERATION</span><span class="v g">BROWSER CANVAS / JS</span></div><div class="kv"><span class="k">NETWORK CALLS</span><span class="v g">0 / MIN</span></div></div></section>
+       <section class="s4 reveal"><div class="panel"><div class="panel-h"><h3>Calibration Policy</h3><span class="tag warn">SIM → FIELD</span></div><div class="kv"><span class="k">NORMAL BAND</span><span class="v">μ ± 2.5σ</span></div><div class="kv"><span class="k">ALERT GATE</span><span class="v" id="cardGate">SCORE ≥ 0.55</span></div><div class="kv"><span class="k">CLEAR GATE</span><span class="v" id="cardClear">SCORE &lt; 0.44</span></div><div class="kv"><span class="k">DEBOUNCE</span><span class="v">3 CLEAN WINDOWS</span></div><div class="kv"><span class="k">DATASET STATUS</span><span class="v a" id="cardDataset">SYNTHETIC BRING-UP</span></div></div></section>
+    </div>
+  </main>
+
+   <footer><div class="foot max"><div><b>AXON·EDGE</b> — PREDICTIVE MAINTENANCE WORKFLOW</div><div>BROWSER-ONLY REPLAY · THRESHOLD WORKFLOW · FIRMWARE TARGET REFERENCE</div><div>SIMULATION MODE · DATASET INTAKE READY</div></div></footer>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const random = (() => {
+      let seed = 0x7a6f4d21;
+      return () => {
+        seed |= 0;
+        seed = seed + 0x6d2b79f5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+    })();
+    const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const fmtDate = date => `${String(date.getDate()).padStart(2, '0')} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+    const fmtTime = date => [date.getHours(), date.getMinutes(), date.getSeconds()].map(value => String(value).padStart(2, '0')).join(':');
+    const escapeHTML = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+
+    /* The dashboard uses a faster display stream, but keeps the same 1024-point
+       edge window and 1 kHz contract as the ESP32 training/firmware backend. */
+    const SAMPLE_RATE = 1000;
+    const WINDOW = 1024;
+    const DISPLAY_BUFFER = 2400;
+     const FEATURE_COUNT = 8;
+     const FEATURE_NAMES = ['RMS X', 'RMS Y', 'RMS Z', 'KURTOSIS X', 'CREST FACTOR', 'HF BAND RATIO', 'TEMPERATURE', 'PEAK-PEAK Z'];
+     const FEATURE_UNITS = ['g', 'g', 'g', '—', '—', 'ratio', '°C', 'g'];
+     const BEARING_FEATURE_FIELDS = [
+       { key: 'max', name: 'MAX', unit: 'g' }, { key: 'min', name: 'MIN', unit: 'g' },
+       { key: 'mean', name: 'MEAN', unit: 'g' }, { key: 'sd', name: 'SD', unit: 'g' },
+       { key: 'rms', name: 'RMS', unit: 'g' }, { key: 'skewness', name: 'SKEWNESS', unit: '—' },
+       { key: 'kurtosis', name: 'KURTOSIS', unit: '—' }, { key: 'crest', name: 'CREST FACTOR', unit: '—' },
+       { key: 'form', name: 'FORM FACTOR', unit: '—' }
+     ];
+     const REAL_DATASETS = {
+       kirloskar: { name: 'Kirloskar motor vibration', path: '../data/kirloskar_vibration.csv', kind: 'raw', profile: 'normal' },
+       bearing: { name: 'Bearing feature-time CSV', path: '../data/bearing_features.csv', kind: 'bearing', profile: 'labelled' },
+       gearbox: { name: 'Gearbox B30Hz40 replay', path: '../data/gearbox_b30hz40.csv', kind: 'raw', profile: 'labelled' }
+     };
+     const CODE = { imbalance: 'MB-101', misalign: 'MB-202', bearing: 'BR-303', outerrace: 'BR-304', overheat: 'TH-500', gearbox: 'GB-401', healthy: 'NM-000' };
+     const SEVERITY = { imbalance: 'MEDIUM', misalign: 'MEDIUM', bearing: 'HIGH', outerrace: 'CRITICAL', overheat: 'CRITICAL', gearbox: 'HIGH', healthy: 'LOW' };
+     const STAGE_NAMES = ['DETECTED', 'CLASSIFIED', 'DISPATCHED', 'SERVICED', 'VERIFIED', 'CLOSED'];
+     const buffers = { x: [], y: [], z: [], temp: [], aux: [] };
+      const sim = { rpm: 1750, load: .62, noise: .12, fault: 'healthy', temp: 42, phase: 0, time: 0, dataset: null, datasetIndex: 0, adaptiveScale: true, sourceKey: 'synthetic', sourceStatus: 'active' };
+      let realLoadToken = 0;
+      let realLoadController = null;
+     const state = {
+       score: .021, health: 98.4, rul: 214, confidence: 99.1, alerts: 0, featuresOut: 0,
+       threshold: .55, alert: false, cleanWindows: 0, autoWorkflow: true, uptime: 0,
+       inferenceMs: 1.84, lastFeatureUpdate: 0, lastHealthUpdate: 0, lastFleetUpdate: 0,
+       filter: 'all', search: '', datasetLabel: 'SYNTHETIC BASELINE', faultFamily: 'SYNTHETIC', sourceLabel: 'SYNTHETIC', lastDatasetLog: 0
+     };
+    const scoreHistory = Array(220).fill(.021);
+    const healthHistory = Array.from({ length: 160 }, () => ({ health: 98.4, rul: 214 }));
+    const alertHistogram = Array.from({ length: 24 }, (_, index) => Math.max(0, Math.round(Math.abs(Math.sin(index * 1.7)) * 2.2 + (index > 8 && index < 19 ? 1 : 0))));
+    const spectrogram = Array.from({ length: 96 }, () => new Float32Array(44));
+    const fleet = [
+      { id: 'MTR-07', line: 'LINE A · MAIN DRIVE', health: 98.4, history: [] },
+      { id: 'MTR-03', line: 'LINE A · AUX PUMP', health: 93.6, history: [] },
+      { id: 'PMP-12', line: 'LINE B · COOLANT', health: 86.9, history: [] },
+      { id: 'FAN-04', line: 'LINE C · EXHAUST', health: 99.1, history: [] }
+    ];
+    fleet.forEach(asset => { for (let i = 0; i < 60; i += 1) asset.history.push(asset.health + Math.sin(i * .3) * 1.2); });
+
+    const FAULTS = {
+      healthy: { a1: .34, a2: .07, a3: .03, ring: 0, ringF: 0, envelope: 0, temp: 0 },
+      imbalance: { a1: 1.15, a2: .10, a3: .05, ring: 0, ringF: 0, envelope: 0, temp: 6 },
+      misalign: { a1: .52, a2: .78, a3: .34, ring: .12, ringF: 44, envelope: 0, temp: 9 },
+      bearing: { a1: .40, a2: .14, a3: .08, ring: .62, ringF: 68, envelope: 12, temp: 11 },
+      outerrace: { a1: .38, a2: .16, a3: .10, ring: .85, ringF: 95, envelope: 22, temp: 9 },
+      overheat: { a1: .46, a2: .24, a3: .12, ring: .10, ringF: 52, envelope: 0, temp: 38 }
+    };
+
+    function push(buffer, value) {
+      buffer.push(value);
+      if (buffer.length > DISPLAY_BUFFER) buffer.shift();
+    }
+
+     function clearBuffers() {
+       buffers.x.length = 0;
+       buffers.y.length = 0;
+       buffers.z.length = 0;
+       buffers.temp.length = 0;
+       buffers.aux.length = 0;
+       latestFeatureValues = null;
+     }
+
+    function generateSample() {
+      const fault = FAULTS[sim.fault] || FAULTS.healthy;
+      const fundamental = sim.rpm / 60;
+      const loadAmplitude = .65 + sim.load * .75;
+      const phase = sim.phase;
+      const noise = () => (random() * 2 - 1) * sim.noise;
+      let x = fault.a1 * loadAmplitude * Math.sin(2 * Math.PI * fundamental * phase) +
+        fault.a2 * loadAmplitude * Math.sin(2 * Math.PI * 2 * fundamental * phase + .8) +
+        fault.a3 * loadAmplitude * Math.sin(2 * Math.PI * 3 * fundamental * phase + 1.9) + noise();
+      let y = fault.a1 * loadAmplitude * .86 * Math.sin(2 * Math.PI * fundamental * phase + 1.15) +
+        fault.a2 * loadAmplitude * .62 * Math.sin(2 * Math.PI * 2 * fundamental * phase + 2.4) + noise() * 1.08;
+      let z = fault.a1 * loadAmplitude * .72 * Math.sin(2 * Math.PI * fundamental * phase + 2.25) +
+        fault.a3 * loadAmplitude * 1.3 * Math.sin(2 * Math.PI * 3 * fundamental * phase + .3) + noise() * 1.15;
+
+      if (fault.ring > 0) {
+        const envelope = fault.envelope > 0 ? Math.max(0, Math.sin(2 * Math.PI * fault.envelope * phase)) : 1;
+        const ring = fault.ring * envelope * Math.sin(2 * Math.PI * fault.ringF * phase);
+        x += ring; y += ring * .72; z += ring * .55;
+        if (Math.sin(2 * Math.PI * fault.envelope * phase) > .985) { x += fault.ring * 2.6; z += fault.ring * 1.8; }
+      }
+
+      sim.temp += ((41 + sim.load * 11 + fault.temp + Math.sin(phase * .22) * 1.6) - sim.temp) * .014 + (random() * 2 - 1) * .05;
+      sim.phase += 1 / SAMPLE_RATE;
+      sim.time += 1 / SAMPLE_RATE;
+      push(buffers.x, x); push(buffers.y, y); push(buffers.z, z); push(buffers.temp, sim.temp);
+    }
+
+    function vectorStats(values) {
+      const count = values.length || 1;
+      let sum = 0; let sumSquares = 0; let maximum = -Infinity; let minimum = Infinity;
+      values.forEach(value => { sum += value; sumSquares += value * value; maximum = Math.max(maximum, value); minimum = Math.min(minimum, value); });
+      const mean = sum / count;
+      const variance = Math.max(1e-9, sumSquares / count - mean * mean);
+      let fourthMoment = 0;
+      values.forEach(value => { const delta = value - mean; fourthMoment += delta ** 4; });
+      const rms = Math.sqrt(sumSquares / count);
+      return { rms, kurtosis: (fourthMoment / count) / (variance * variance), crest: Math.max(0, maximum) / (rms + 1e-9), peakToPeak: maximum - minimum };
+    }
+
+    function highFrequencyRatio(values) {
+      const size = 128;
+      if (values.length < size) return 0;
+      const segment = values.slice(-size);
+      let total = 0; let high = 0;
+      for (let bin = 1; bin < size / 2; bin += 1) {
+        let real = 0; let imaginary = 0;
+        for (let sample = 0; sample < size; sample += 1) {
+          const angle = -2 * Math.PI * bin * sample / size;
+          real += segment[sample] * Math.cos(angle);
+          imaginary += segment[sample] * Math.sin(angle);
+        }
+        const power = real * real + imaginary * imaginary;
+        total += power;
+        if (bin >= 6) high += power;
+      }
+      return total > 0 ? high / total : 0;
+    }
+
+    function windowValues(values) {
+      if (values.length >= WINDOW) return values.slice(-WINDOW);
+      const first = values.length ? values[0] : 0;
+      return Array(WINDOW - values.length).fill(first).concat(values);
+    }
+
+     function extractFeaturesFromChannels(xValues, yValues, zValues, temperatureValues) {
+       const x = windowValues(xValues); const y = windowValues(yValues); const z = windowValues(zValues); const temperature = windowValues(temperatureValues);
+       const sx = vectorStats(x); const sy = vectorStats(y); const sz = vectorStats(z);
+       const temp = temperature.reduce((sum, value) => sum + value, 0) / temperature.length;
+       return [sx.rms, sy.rms, sz.rms, Math.min(40, sx.kurtosis), Math.min(20, sx.crest), highFrequencyRatio(x), temp, sz.peakToPeak];
+     }
+
+     function extractFeatures() {
+       return extractFeaturesFromChannels(buffers.x, buffers.y, buffers.z, buffers.temp);
+     }
+
+     let baseline = { mean: Array(FEATURE_COUNT).fill(0), std: Array(FEATURE_COUNT).fill(1), low: Array(FEATURE_COUNT).fill(0), high: Array(FEATURE_COUNT).fill(1), samples: 0 };
+     let bearingBaseline = { mean: Array(BEARING_FEATURE_FIELDS.length).fill(0), std: Array(BEARING_FEATURE_FIELDS.length).fill(1), low: Array(BEARING_FEATURE_FIELDS.length).fill(0), high: Array(BEARING_FEATURE_FIELDS.length).fill(1), samples: 0 };
+     let latestFeatureValues = null;
+
+    function learnHealthyBaseline() {
+      const saved = { fault: sim.fault, load: sim.load, noise: sim.noise, temp: sim.temp, phase: sim.phase, time: sim.time };
+      clearBuffers(); sim.fault = 'healthy'; sim.load = .55; sim.noise = .12; sim.temp = 42; sim.phase = 0; sim.time = 0;
+      const samples = [];
+      for (let index = 0; index < 15000; index += 1) {
+        generateSample();
+        if (index >= WINDOW && index % 128 === 0) samples.push(extractFeatures());
+      }
+      for (let feature = 0; feature < FEATURE_COUNT; feature += 1) {
+        const values = samples.map(row => row[feature]);
+        const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+        const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+        const std = Math.max(Math.sqrt(variance), Math.max(Math.abs(mean) * .04, .01));
+        baseline.mean[feature] = mean;
+        baseline.std[feature] = std;
+        baseline.low[feature] = mean - 2.5 * std;
+        baseline.high[feature] = mean + 2.5 * std;
+      }
+      baseline.samples = samples.length;
+      clearBuffers(); Object.assign(sim, saved);
+    }
+
+    function scoreFeatures(features) {
+      let maximumZ = 0; let totalZ = 0; let outside = 0;
+      features.forEach((value, feature) => {
+        const z = Math.abs(value - baseline.mean[feature]) / Math.max(baseline.std[feature], 1e-6);
+        maximumZ = Math.max(maximumZ, z);
+        totalZ += z;
+        if (value < baseline.low[feature] || value > baseline.high[feature]) outside += 1;
+      });
+      const averageZ = totalZ / FEATURE_COUNT;
+      return { score: clamp(.018 + maximumZ * .082 + averageZ * .025, 0, 1), outside };
+    }
+
+    learnHealthyBaseline();
+
+    /* ---------------- event stream ---------------- */
+    function log(level, message) {
+      const terminal = $('#terminal');
+      if (!terminal) return;
+      const now = new Date();
+      const line = document.createElement('div');
+      const className = level === 'FAULT' ? 'fault' : level === 'WARN' ? 'warn' : level === 'OK' ? 'ok' : 'info';
+      line.className = `line ${className}`;
+      line.innerHTML = `<span class="ts">${fmtTime(now)}.${String(now.getMilliseconds()).padStart(3, '0')}</span><span class="level">${escapeHTML(level)}</span><span class="msg">${escapeHTML(message)}</span>`;
+      terminal.appendChild(line);
+      while (terminal.children.length > 140) terminal.removeChild(terminal.firstChild);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    /* ---------------- incident ledger ---------------- */
+     const INCIDENT_KEY = 'axon_edge_incidents_threshold_v1';
+     let incidents = [];
+     let incidentSequence = 0;
+     let selectedIncidentId = null;
+
+     function saveIncidents() {
+       try { localStorage.setItem(INCIDENT_KEY, JSON.stringify({ incidents: incidents.slice(0, 150), sequence: incidentSequence, selectedIncidentId })); } catch (_) { /* private browser storage may be disabled */ }
+     }
+
+     function normalizeIncidentEvent(event, fallbackTime, fallbackMessage) {
+       const raw = event && typeof event === 'object' ? event : {};
+       const date = new Date(raw.t || raw.timestamp || raw.time || fallbackTime);
+       return {
+         t: Number.isFinite(date.getTime()) ? date.toISOString() : fallbackTime,
+         c: String(raw.c || raw.className || '').slice(0, 12),
+         m: String(raw.m || raw.message || fallbackMessage || 'Incident event').slice(0, 360)
+       };
+     }
+
+     function normalizeIncident(rawIncident, fallbackId) {
+       const raw = rawIncident && typeof rawIncident === 'object' ? rawIncident : {};
+       const date = new Date(raw.ts || raw.timestamp || raw.createdAt || Date.now());
+       const ts = Number.isFinite(date.getTime()) ? date.toISOString() : new Date().toISOString();
+       const fallbackFault = String(raw.fault || raw.type || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '') || 'unknown';
+       const fault = Object.prototype.hasOwnProperty.call(CODE, fallbackFault) ? fallbackFault : (raw.fault || fallbackFault);
+       const score = Number(raw.score);
+       const threshold = Number(raw.threshold);
+       const safeThreshold = Number.isFinite(threshold) ? clamp(threshold, 0, 1) : state.threshold;
+       const events = Array.isArray(raw.events) && raw.events.length ? raw.events.map(event => normalizeIncidentEvent(event, ts, `Legacy incident ${fallbackId} imported`)) : [normalizeIncidentEvent(null, ts, `Incident ${fallbackId} imported from the existing ledger`)];
+       const stageValue = Number(raw.stage);
+       const stage = Number.isFinite(stageValue) ? clamp(Math.round(stageValue), 0, 5) : 0;
+       const status = String(raw.status || '').toUpperCase() === 'CLOSED' || stage >= 5 ? 'CLOSED' : 'OPEN';
+       const rawAssetValue = raw.asset && typeof raw.asset === 'object' ? raw.asset.id : raw.asset;
+       const machine = String(raw.machine || rawAssetValue || 'MTR-07');
+       const code = String(raw.code || CODE[fault] || 'GEN-000');
+       const type = String(raw.type || fault).toUpperCase();
+       const severity = String(raw.severity || SEVERITY[fault] || 'MEDIUM').toUpperCase();
+       const source = String(raw.source || 'SYNTHETIC');
+       const sourceLabel = String(raw.sourceLabel || source || 'SYNTHETIC');
+       const faultFamily = String(raw.faultFamily || source || 'SYNTHETIC');
+       const normalized = {
+         ...raw,
+         id: String(raw.id || fallbackId), ts, machine, code, type, fault, severity,
+         source, sourceLabel, faultFamily,
+         score: Number.isFinite(score) ? clamp(score, 0, 1) : 0,
+         threshold: safeThreshold,
+         clearThreshold: Number.isFinite(Number(raw.clearThreshold)) ? clamp(Number(raw.clearThreshold), 0, 1) : safeThreshold * .8,
+         stage, status, events
+       };
+       const rawSnapshot = raw.snapshot && typeof raw.snapshot === 'object' ? raw.snapshot : {};
+       const snapshotTimestamps = rawSnapshot.timestamps && typeof rawSnapshot.timestamps === 'object' ? rawSnapshot.timestamps : {};
+       const rawAsset = rawSnapshot.asset && typeof rawSnapshot.asset === 'object' ? rawSnapshot.asset : raw.asset && typeof raw.asset === 'object' ? raw.asset : {};
+       const rawFault = rawSnapshot.fault && typeof rawSnapshot.fault === 'object' ? rawSnapshot.fault : {};
+       const rawSource = rawSnapshot.source && typeof rawSnapshot.source === 'object' ? rawSnapshot.source : {};
+       const rawWorkflow = rawSnapshot.workflow && typeof rawSnapshot.workflow === 'object' ? rawSnapshot.workflow : {};
+       const rawRelay = rawSnapshot.relay && typeof rawSnapshot.relay === 'object' ? rawSnapshot.relay : {};
+       normalized.snapshot = {
+         ...rawSnapshot,
+         version: Number(rawSnapshot.version) || 1,
+         incidentId: normalized.id,
+         capturedAt: rawSnapshot.capturedAt || ts,
+         timestamps: { detectedAt: snapshotTimestamps.detectedAt || ts, openedAt: snapshotTimestamps.openedAt || ts, ...snapshotTimestamps },
+         asset: { ...rawAsset, id: rawAsset.id || machine, line: rawAsset.line || 'LINE A · MAIN DRIVE' },
+         fault: { ...rawFault, key: rawFault.key || fault, type: rawFault.type || type, code: rawFault.code || code },
+         severity: rawSnapshot.severity || severity,
+         score: Number.isFinite(Number(rawSnapshot.score)) ? Number(rawSnapshot.score) : normalized.score,
+         threshold: Number.isFinite(Number(rawSnapshot.threshold)) ? Number(rawSnapshot.threshold) : normalized.threshold,
+         clearThreshold: Number.isFinite(Number(rawSnapshot.clearThreshold)) ? Number(rawSnapshot.clearThreshold) : normalized.clearThreshold,
+         features: (Array.isArray(rawSnapshot.features) ? rawSnapshot.features : Array.isArray(raw.features) ? raw.features : []).map(item => item && typeof item === 'object' ? item : {}),
+         normalBands: rawSnapshot.normalBands && typeof rawSnapshot.normalBands === 'object' ? rawSnapshot.normalBands : raw.normalBands && typeof raw.normalBands === 'object' ? raw.normalBands : {},
+         source: { ...rawSource, mode: rawSource.mode || (source === 'SYNTHETIC' ? 'SIMULATION' : 'REAL DATA'), key: rawSource.key || '', name: rawSource.name || source, label: rawSource.label || sourceLabel, faultFamily: rawSource.faultFamily || faultFamily, dataset: rawSource.dataset || null },
+         telemetry: rawSnapshot.telemetry && typeof rawSnapshot.telemetry === 'object' ? rawSnapshot.telemetry : raw.telemetry && typeof raw.telemetry === 'object' ? raw.telemetry : null,
+         relay: { ...rawRelay, state: rawRelay.state || (status === 'OPEN' ? 'ENERGISED' : 'RELEASED'), energised: rawRelay.energised !== undefined ? Boolean(rawRelay.energised) : status === 'OPEN', gpio: rawRelay.gpio || 'GPIO12' },
+         workflow: { ...rawWorkflow, stage, stageName: STAGE_NAMES[stage], status, autoProgression: rawWorkflow.autoProgression !== false },
+         eventHistory: Array.isArray(rawSnapshot.eventHistory) ? rawSnapshot.eventHistory : Array.isArray(raw.eventHistory) ? raw.eventHistory : events.map(event => ({ ...event }))
+       };
+       return normalized;
+     }
+
+     function maxIncidentSequence(records) {
+       return records.reduce((maximum, incident) => {
+         const match = String(incident.id || '').match(/(\d+)$/);
+         return Math.max(maximum, match ? Number(match[1]) : 0);
+       }, 0);
+     }
+
+      function loadIncidents() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(INCIDENT_KEY));
+          const storedIncidents = Array.isArray(saved) ? saved : saved && Array.isArray(saved.incidents) ? saved.incidents : [];
+          if (!storedIncidents.length) {
+            selectedIncidentId = saved && (saved.selectedIncidentId || saved.selectedId) ? String(saved.selectedIncidentId || saved.selectedId) : null;
+            state.alerts = 0;
+            const alertCount = $('#alertCount'); if (alertCount) alertCount.textContent = '0';
+            return;
+          }
+          const usedIds = new Set();
+          incidentSequence = Math.max(Number(saved && saved.sequence) || 0, maxIncidentSequence(storedIncidents));
+          incidents = storedIncidents.map(raw => {
+           let id = raw && raw.id ? String(raw.id) : '';
+           if (!id || usedIds.has(id)) id = `INC-${String(++incidentSequence).padStart(4, '0')}`;
+           usedIds.add(id);
+           return normalizeIncident({ ...(raw || {}), id }, id);
+         });
+          incidentSequence = Math.max(incidentSequence, maxIncidentSequence(incidents));
+          selectedIncidentId = saved && (saved.selectedIncidentId || saved.selectedId) ? String(saved.selectedIncidentId || saved.selectedId) : null;
+          if (!incidents.some(incident => incident.id === selectedIncidentId)) selectedIncidentId = incidents[0].id;
+          state.alerts = incidents.length;
+          const alertCount = $('#alertCount'); if (alertCount) alertCount.textContent = String(state.alerts);
+          saveIncidents();
+        } catch (_) { /* use an empty ledger */ }
+      }
+
+     function activeIncident() { return incidents.find(incident => incident.status === 'OPEN'); }
+
+     function cleanDatasetLabel(value, fallback = 'UNLABELLED') {
+       const label = String(value == null ? '' : value).trim();
+       return label ? label.slice(0, 72) : fallback;
+     }
+
+     function isNormalDatasetLabel(label) {
+       const normalized = cleanDatasetLabel(label, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+       return !normalized || normalized.includes('normal') || normalized.includes('healthy') || normalized === 'ok';
+     }
+
+     function faultTypeForDatasetLabel(label) {
+       const normalized = cleanDatasetLabel(label, '').toLowerCase();
+       if (isNormalDatasetLabel(normalized)) return 'healthy';
+       if (normalized.includes('outer')) return 'outerrace';
+       if (normalized.includes('imbalance')) return 'imbalance';
+       if (normalized.includes('misalign')) return 'misalign';
+       if (normalized.includes('gear') || sim.sourceKey === 'gearbox') return 'gearbox';
+       return sim.dataset && sim.dataset.kind === 'bearing' ? 'bearing' : 'gearbox';
+     }
+
+      function currentDatasetContext() {
+        const real = sim.dataset && sim.dataset.kind !== 'simulation';
+        return {
+          source: real ? cleanDatasetLabel(sim.dataset.displayName, sim.sourceKey.toUpperCase()) : 'SYNTHETIC',
+          sourceLabel: cleanDatasetLabel(state.datasetLabel, real ? 'UNLABELLED' : 'SYNTHETIC BASELINE'),
+          faultFamily: cleanDatasetLabel(state.faultFamily, real ? 'SOURCE-LABELLED' : 'SYNTHETIC')
+        };
+      }
+
+      function summarizeTelemetryValues(values) {
+        if (!Array.isArray(values) || !values.length) return null;
+        const window = values.slice(-WINDOW); const stats = vectorStats(window);
+        const mean = window.reduce((sum, value) => sum + value, 0) / window.length;
+        return { samples: values.length, windowSamples: window.length, mean: Number(mean.toFixed(5)), rms: Number(stats.rms.toFixed(5)), min: Number(Math.min(...window).toFixed(5)), max: Number(Math.max(...window).toFixed(5)) };
+      }
+
+      function captureTelemetrySnapshot() {
+        const dataset = sim.dataset;
+        const rowIndex = dataset && dataset.rows.length ? (sim.datasetIndex - 1 + dataset.rows.length) % dataset.rows.length : null;
+        const row = dataset && rowIndex !== null ? dataset.rows[rowIndex] : null;
+        const sourceTime = dataset && dataset.timeColumn !== null && dataset.timeColumn !== undefined && row ? row[dataset.timeColumn] : null;
+        return {
+          sampleRate: SAMPLE_RATE, windowSize: WINDOW, availableSamples: buffers.x.length, windowReady: buffers.x.length >= WINDOW,
+          channels: { x: summarizeTelemetryValues(buffers.x), y: summarizeTelemetryValues(buffers.y), z: summarizeTelemetryValues(buffers.z), temperature: summarizeTelemetryValues(buffers.temp) },
+          operatingPoint: { rpm: sim.rpm, load: Number(sim.load.toFixed(3)), noise: Number(sim.noise.toFixed(3)), temperature: Number(sim.temp.toFixed(2)) },
+          datasetWindow: dataset ? { index: rowIndex, rows: dataset.rows.length, sourceTime: sourceTime == null ? null : String(sourceTime), kind: dataset.kind, name: dataset.displayName || dataset.name || '' } : null
+        };
+      }
+
+      function captureFeatureSnapshot(features) {
+        const fields = activeFeatureFields();
+        let values = Array.isArray(features) ? features : latestFeatureValues;
+        if (!Array.isArray(values) && buffers.x.length) values = sim.dataset && sim.dataset.kind === 'bearing' ? [] : extractFeatures();
+        values = Array.isArray(values) ? values : [];
+        const isBearing = sim.dataset && sim.dataset.kind === 'bearing';
+        const normal = isBearing ? bearingBaseline : baseline;
+        const featuresSnapshot = fields.map((field, feature) => {
+          const rawValue = values[feature]; const value = rawValue === null || rawValue === undefined || rawValue === '' ? NaN : Number(rawValue);
+          const finite = Number.isFinite(value);
+          const status = finite ? (isBearing ? bearingFeatureStatus(value, feature) : featureStatus(value, feature)) : { label: 'NO DATA', className: '', z: 0 };
+          return {
+            name: field.name, key: field.key, unit: field.unit || '—', value: finite ? Number(value.toFixed(6)) : null,
+            normalBand: { low: Number.isFinite(normal.low[feature]) ? Number(normal.low[feature].toFixed(6)) : null, high: Number.isFinite(normal.high[feature]) ? Number(normal.high[feature].toFixed(6)) : null },
+            state: status.label, outOfBand: status.label === 'OUTSIDE' || status.label === 'CRITICAL', z: Number((status.z || 0).toFixed(3))
+          };
+        });
+        const normalBands = {};
+        featuresSnapshot.forEach(item => { normalBands[item.key || item.name] = { ...item.normalBand }; });
+        return { fields: featuresSnapshot, normalBands, count: featuresSnapshot.length, outOfBand: featuresSnapshot.filter(item => item.outOfBand).length };
+      }
+
+      function syncIncidentSnapshot(incident) {
+        if (!incident) return;
+        const snapshot = incident.snapshot || (incident.snapshot = {});
+        snapshot.incidentId = incident.id;
+        snapshot.score = incident.score;
+        snapshot.threshold = incident.threshold;
+        snapshot.clearThreshold = incident.clearThreshold;
+        snapshot.workflow = { ...(snapshot.workflow || {}), stage: incident.stage, stageName: STAGE_NAMES[Math.min(incident.stage, 5)], status: incident.status, autoProgression: state.autoWorkflow };
+       snapshot.relay = { ...(snapshot.relay || {}), state: incident.status === 'OPEN' ? 'ENERGISED' : 'RELEASED', energised: incident.status === 'OPEN', gpio: 'GPIO12' };
+        snapshot.timestamps = { ...(snapshot.timestamps || {}), lastUpdatedAt: new Date().toISOString() };
+        if (incident.status === 'CLOSED' && !snapshot.timestamps.closedAt) snapshot.timestamps.closedAt = new Date().toISOString();
+       snapshot.eventHistory = (Array.isArray(incident.events) ? incident.events : []).map(event => ({ ...event }));
+      }
+
+      function openIncident(type, score, snapshotInput = {}) {
+        // `state.alert` and the three-window clear gate debounce one threshold
+        // crossing. Do not collapse a later crossing into the previous ticket:
+        // every distinct alert gets its own persistent investigation tab.
+        const context = currentDatasetContext();
+        const normalizedType = type === 'healthy' ? (context.faultFamily === 'GEARBOX ANOMALY' ? 'gearbox' : 'imbalance') : type;
+        const now = new Date();
+        const id = `INC-${String(++incidentSequence).padStart(4, '0')}`;
+        const threshold = state.threshold;
+        const featureSnapshot = captureFeatureSnapshot(snapshotInput.features);
+        const detectorResult = snapshotInput.result && typeof snapshotInput.result === 'object' ? snapshotInput.result : {};
+        const detectorDetail = String(snapshotInput.detail || '').slice(0, 240);
+        const incident = {
+          id,
+          ts: now.toISOString(), machine: 'MTR-07', code: CODE[normalizedType] || 'GEN-000',
+          type: normalizedType.toUpperCase(), fault: normalizedType, severity: SEVERITY[normalizedType] || 'MEDIUM',
+          source: context.source, sourceLabel: context.sourceLabel, faultFamily: context.faultFamily,
+          score: Number(score.toFixed(3)), threshold, clearThreshold: Number((threshold * .8).toFixed(3)), stage: 0, status: 'OPEN', events: [{
+            t: now.toISOString(), c: 'crit', m: `Anomaly detected · score ${score.toFixed(3)} · threshold ${state.threshold.toFixed(2)} crossed · ${context.sourceLabel}`
+          }],
+          snapshot: {
+            version: 1, incidentId: id, capturedAt: now.toISOString(),
+            timestamps: { detectedAt: now.toISOString(), openedAt: now.toISOString() },
+            asset: { id: 'MTR-07', line: 'LINE A · MAIN DRIVE' },
+            fault: { key: normalizedType, type: normalizedType.toUpperCase(), code: CODE[normalizedType] || 'GEN-000' },
+             severity: SEVERITY[normalizedType] || 'MEDIUM', score: Number(score.toFixed(3)), threshold, clearThreshold: Number((threshold * .8).toFixed(3)),
+             features: featureSnapshot.fields, normalBands: featureSnapshot.normalBands,
+             detector: { score: Number(score.toFixed(3)), outside: Number.isFinite(Number(detectorResult.outside)) ? Number(detectorResult.outside) : featureSnapshot.outOfBand, detail: detectorDetail },
+             source: {
+              mode: sim.dataset ? 'REAL DATA' : 'SIMULATION', key: sim.sourceKey, name: context.source, label: context.sourceLabel, faultFamily: context.faultFamily,
+              dataset: sim.dataset ? { kind: sim.dataset.kind, name: sim.dataset.displayName || sim.dataset.name || '', path: sim.dataset.sourcePath || '', rowIndex: (sim.datasetIndex - 1 + sim.dataset.rows.length) % sim.dataset.rows.length, rows: sim.dataset.rows.length } : { kind: 'simulation', name: 'Browser Simulation', path: '', rowIndex: null, rows: null }
+            },
+            telemetry: captureTelemetrySnapshot(), relay: { state: 'ENERGISED', energised: true, gpio: 'GPIO12', energisedAt: now.toISOString() },
+            workflow: { stage: 0, stageName: STAGE_NAMES[0], status: 'OPEN', autoProgression: state.autoWorkflow }, eventHistory: []
+          }
+        };
+        syncIncidentSnapshot(incident);
+       incidents.unshift(incident);
+        selectedIncidentId = incident.id;
+       state.alerts += 1;
+       alertHistogram[now.getHours()] += 1;
+       $('#alertCount').textContent = state.alerts;
+       saveIncidents(); renderLedger(); renderIncidentInvestigation(); renderTimeline(); renderStages(); renderCalendar(); computeStats();
+        log('FAULT', `${incident.id} OPENED · ${incident.code} ${incident.type} · ${incident.severity} · ${context.sourceLabel} · relay K1 energised`);
+       return incident;
+     }
+
+    function advanceIncident(incident) {
+      if (!incident || incident.status === 'CLOSED') return;
+      incident.stage += 1;
+      const messages = [
+        'Incident opened at edge · threshold gate tripped',
+        `Classified and verified · ${incident.code} signature matched · severity ${incident.severity}`,
+        `Work order WO-${incident.id.slice(4)} dispatched to maintenance crew`,
+        'Field service completed · corrective action recorded',
+        'Verification soak test passed on-edge · signature cleared',
+        'Closed and filed · root-cause record sealed'
+      ];
+      incident.events.push({ t: new Date().toISOString(), c: incident.stage >= 4 ? 'ok' : '', m: messages[Math.min(incident.stage, messages.length - 1)] });
+      if (incident.stage >= 5) {
+        incident.stage = 5; incident.status = 'CLOSED'; incident.mttr = Math.max(1, Math.round((Date.now() - new Date(incident.ts).getTime()) / 60000));
+        log('OK', `${incident.id} CLOSED · verification passed`);
+       } else {
+         log('INFO', `${incident.id} → STAGE ${incident.stage + 1} ${STAGE_NAMES[incident.stage]}`);
+       }
+       syncIncidentSnapshot(incident); saveIncidents(); renderLedger(); renderIncidentInvestigation(); renderTimeline(); renderStages(); renderCalendar(); computeStats();
+     }
+
+    function severityPill(severity) {
+      const className = severity === 'CRITICAL' ? 'crit' : severity === 'HIGH' ? 'high' : severity === 'MEDIUM' ? 'high' : 'ok';
+      return `<span class="pill ${className}">${escapeHTML(severity)}</span>`;
+    }
+
+    function renderStages() {
+      const incident = activeIncident() || incidents[0];
+      $$('.stage').forEach(stage => {
+        const index = Number(stage.dataset.stage);
+        stage.classList.remove('active', 'done');
+        if (!incident) return;
+        if (incident.status === 'CLOSED' || incident.stage > index) stage.classList.add('done');
+        else if (incident.stage === index) stage.classList.add('active');
+      });
+      const open = activeIncident();
+      $('#workflowText').textContent = open ? `ACTIVE TICKET ${open.id} · STAGE ${STAGE_NAMES[Math.min(open.stage, 5)]}` : 'WORKFLOW IDLE · NO OPEN TICKET';
+      $('#railWorkflow').textContent = open ? 'ENGAGED' : 'ARMED';
+      $('#activeTicket').textContent = open ? open.id : '—';
+      $('#heroOpen').textContent = incidents.filter(item => item.status === 'OPEN').length;
+      $('#openTickets').textContent = incidents.filter(item => item.status === 'OPEN').length;
+      $('#closedTickets').textContent = incidents.filter(item => item.status === 'CLOSED').length;
+    }
+
+    function renderTimeline() {
+      const container = $('#timeline');
+      const incident = activeIncident() || incidents[0];
+      container.innerHTML = '';
+      $('#timelineTag').textContent = incident ? incident.id : 'IDLE';
+      if (!incident) { container.innerHTML = '<div class="muted" style="font-size:10px">No incident records yet. Inject a fault or cross the threshold.</div>'; return; }
+      incident.events.slice().reverse().forEach(event => {
+        const date = new Date(event.t);
+        const item = document.createElement('div'); item.className = `timeline-item ${event.c || ''}`;
+        item.innerHTML = `<div class="t">${fmtDate(date)} · ${fmtTime(date)}</div><div class="m">${escapeHTML(event.m)}</div>`;
+        container.appendChild(item);
+      });
+    }
+
+    function renderLedger() {
+      const body = $('#ledgerBody'); body.innerHTML = '';
+      const visible = incidents.filter(incident => {
+        if (state.filter === 'open' && incident.status !== 'OPEN') return false;
+        if (state.filter === 'closed' && incident.status !== 'CLOSED') return false;
+        if (state.filter === 'critical' && incident.severity !== 'CRITICAL') return false;
+         if (state.search) {
+           const haystack = `${incident.id} ${incident.code} ${incident.type} ${incident.severity} ${incident.source || ''} ${incident.sourceLabel || ''} ${incident.faultFamily || ''} ${fmtDate(new Date(incident.ts))}`.toLowerCase();
+          if (!haystack.includes(state.search.toLowerCase())) return false;
+        }
+        return true;
+      });
+      $('#ledgerCount').textContent = `${visible.length} RECORDS`;
+       visible.slice(0, 80).forEach(incident => {
+         const date = new Date(incident.ts);
+         const row = document.createElement('tr');
+         row.className = incident.id === selectedIncidentId ? 'selected' : '';
+         row.setAttribute('aria-selected', incident.id === selectedIncidentId ? 'true' : 'false');
+          row.innerHTML = `<td class="id-cell">${escapeHTML(incident.id)}</td><td>${fmtDate(date)}</td><td>${fmtTime(date)}</td><td>${escapeHTML(incident.machine)}</td><td class="a">${escapeHTML(incident.code)}</td><td>${escapeHTML(incident.type)}</td><td>${escapeHTML(incident.sourceLabel || incident.source || 'SYNTHETIC')}</td><td>${severityPill(incident.severity)}</td><td>${incident.score.toFixed(3)}</td><td>${STAGE_NAMES[Math.min(incident.stage, 5)]}</td><td>${incident.status === 'OPEN' ? '<span class="pill open">OPEN</span>' : '<span class="pill ok">CLOSED</span>'}</td><td>${incident.status === 'OPEN' ? `<button class="action" data-action="advance" data-id="${escapeHTML(incident.id)}">ADVANCE</button>` : ''}<button class="action" data-action="detail" data-id="${escapeHTML(incident.id)}">DETAIL</button>${incident.status === 'OPEN' ? `<button class="action" data-action="close" data-id="${escapeHTML(incident.id)}">CLOSE</button>` : ''}</td>`;
+        body.appendChild(row);
+       });
+     }
+
+     function selectedIncident() {
+       return incidents.find(incident => incident.id === selectedIncidentId) || incidents[0] || null;
+     }
+
+     function incidentDisplayDate(value) {
+       const date = new Date(value);
+       return Number.isFinite(date.getTime()) ? `${fmtDate(date)} · ${fmtTime(date)}` : '—';
+     }
+
+     function investigationValue(label, value, className = '') {
+       return `<div class="investigation-kv"><span class="k">${escapeHTML(label)}</span><span class="v ${className}">${escapeHTML(value == null || value === '' ? '—' : String(value))}</span></div>`;
+     }
+
+     function formatSnapshotNumber(value, unit = '') {
+       const number = Number(value);
+       if (!Number.isFinite(number)) return '—';
+       const precision = unit === '°C' ? 1 : Math.abs(number) >= 100 ? 0 : 3;
+       return `${number.toFixed(precision)}${unit ? ` ${unit}` : ''}`;
+     }
+
+     function renderIncidentInvestigation() {
+       const tabs = $('#incidentTabs'); const empty = $('#incidentEmpty'); const detail = $('#incidentDetail');
+       if (!tabs || !empty || !detail) return;
+       tabs.innerHTML = '';
+       tabs.hidden = incidents.length === 0;
+       const incident = selectedIncident();
+       if (incident && selectedIncidentId !== incident.id) selectedIncidentId = incident.id;
+       incidents.forEach(incident => {
+         const tab = document.createElement('button');
+         const selected = incident.id === selectedIncidentId;
+         tab.type = 'button'; tab.className = `incident-tab${selected ? ' selected' : ''}`; tab.dataset.id = incident.id; tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', selected ? 'true' : 'false'); tab.setAttribute('aria-controls', 'incidentDetail');
+         tab.innerHTML = `<span class="tab-top"><span class="tab-id">${escapeHTML(incident.id)}</span><span class="tab-status ${incident.status === 'OPEN' ? 'open' : 'closed'}">${escapeHTML(incident.status)}</span></span><span class="tab-type">${escapeHTML(incident.type)} · ${escapeHTML(incident.code)}</span><span class="tab-meta">${escapeHTML(incident.severity)} · ${escapeHTML(incident.sourceLabel || incident.source || 'SYNTHETIC')}</span>`;
+         tab.addEventListener('click', () => selectIncident(incident.id));
+         tabs.appendChild(tab);
+       });
+       if (!incident) {
+         selectedIncidentId = null; empty.hidden = false; detail.hidden = true; $('#investigationTag').textContent = 'NO INCIDENTS'; $('#downloadIncidentReport').disabled = true; return;
+       }
+       empty.hidden = true; detail.hidden = false; $('#downloadIncidentReport').disabled = false;
+       const snapshot = incident.snapshot || {};
+       const timestamps = snapshot.timestamps || {};
+       const asset = snapshot.asset || { id: incident.machine };
+        const fault = snapshot.fault || { type: incident.type, code: incident.code, key: incident.fault };
+        const source = snapshot.source || { mode: incident.source === 'SYNTHETIC' ? 'SIMULATION' : 'REAL DATA', name: incident.source, label: incident.sourceLabel, faultFamily: incident.faultFamily };
+        const dataset = source.dataset || {};
+        const detector = snapshot.detector || {};
+        const workflow = snapshot.workflow || { stage: incident.stage, stageName: STAGE_NAMES[Math.min(incident.stage, 5)], status: incident.status, autoProgression: state.autoWorkflow };
+       const workflowStage = Number(workflow.stage);
+       const workflowStageName = workflow.stageName || STAGE_NAMES[Number.isFinite(workflowStage) ? clamp(workflowStage, 0, 5) : Math.min(incident.stage, 5)];
+       const relay = snapshot.relay || { state: incident.status === 'OPEN' ? 'ENERGISED' : 'RELEASED', gpio: 'GPIO12' };
+       const statusClass = incident.status === 'OPEN' ? 'r' : 'g';
+       $('#investigationTag').textContent = `${incident.id} · ${incident.status}`; $('#investigationTag').className = `tag ${incident.status === 'OPEN' ? 'crit' : 'live'}`;
+       $('#incidentDetailTitle').textContent = `${incident.id} · ${incident.type}`;
+       $('#incidentDetailSubtitle').textContent = `${incident.code} · ${incident.severity} · ${incident.sourceLabel || incident.source || 'SYNTHETIC'} · CAPTURED ${incidentDisplayDate(snapshot.capturedAt || incident.ts)}`;
+       $('#incidentDetailStatus').textContent = incident.status; $('#incidentDetailStatus').className = `tag ${incident.status === 'OPEN' ? 'crit' : 'live'}`;
+       $('#incidentSummary').innerHTML = [
+          investigationValue('INCIDENT ID', incident.id, 'a'), investigationValue('DETECTED', incidentDisplayDate(timestamps.detectedAt || incident.ts)), investigationValue('OPENED', incidentDisplayDate(timestamps.openedAt || incident.ts)), investigationValue('LAST UPDATED', incidentDisplayDate(timestamps.lastUpdatedAt || incident.ts)),
+          investigationValue('ASSET', `${asset.id || incident.machine}${asset.line ? ` · ${asset.line}` : ''}`), investigationValue('FAULT', `${fault.type || incident.type} · ${fault.code || incident.code}`), investigationValue('SEVERITY', incident.severity, statusClass), investigationValue('RESOLUTION', incident.status === 'CLOSED' ? 'VERIFIED / CLOSED' : 'OPEN / ACTION REQUIRED', statusClass), investigationValue('MTTR', incident.mttr ? `${incident.mttr} MIN` : incident.status === 'OPEN' ? 'IN PROGRESS' : '—')
+        ].join('');
+        $('#incidentScoreSummary').innerHTML = [
+          investigationValue('ALERT SCORE', formatSnapshotNumber(snapshot.score ?? incident.score), incident.status === 'OPEN' ? 'r' : 'a'), investigationValue('ALERT GATE', `SCORE ≥ ${formatSnapshotNumber(snapshot.threshold ?? incident.threshold)}`), investigationValue('CLEAR GATE', `SCORE < ${formatSnapshotNumber(snapshot.clearThreshold ?? incident.clearThreshold)}`), investigationValue('FEATURES OUT', `${Number.isFinite(Number(detector.outside)) ? Number(detector.outside) : (snapshot.features || []).filter(item => item && (item.outOfBand || /OUTSIDE|CRITICAL/i.test(String(item.state || '')))).length} / ${(snapshot.features || []).length || '—'}`), investigationValue('STAGE', `${workflowStageName} (${Number.isFinite(workflowStage) ? workflowStage + 1 : incident.stage + 1}/6)`), investigationValue('RULE DETAIL', detector.detail || 'Normal-band deviation crossed the configured threshold')
+        ].join('');
+       $('#incidentWorkflowSummary').innerHTML = [
+         investigationValue('RELAY', relay.state || '—', relay.state === 'ENERGISED' ? 'r' : 'g'), investigationValue('GPIO', relay.gpio || 'GPIO12'), investigationValue('WORKFLOW', workflowStageName), investigationValue('STATUS', workflow.status || incident.status, statusClass), investigationValue('AUTO PROGRESSION', workflow.autoProgression === false ? 'OFF' : 'ON')
+       ].join('');
+       const featureContainer = $('#incidentFeatureSnapshot'); const featureRows = Array.isArray(snapshot.features) ? snapshot.features : [];
+       featureContainer.innerHTML = featureRows.length ? featureRows.map(item => {
+         const stateLabel = String(item.state || (item.outOfBand ? 'OUTSIDE' : 'NORMAL')).toUpperCase(); const stateClass = stateLabel === 'CRITICAL' ? 'crit' : stateLabel === 'OUTSIDE' ? 'warn' : stateLabel === 'NORMAL' ? 'ok' : '';
+         const normalBand = item.normalBand || (snapshot.normalBands && snapshot.normalBands[item.key || item.name]) || {};
+         const z = Number(item.z); const width = Number.isFinite(z) ? clamp(8 + z * 18, 8, 100) : 8;
+         return `<div class="investigation-feature ${stateClass === 'crit' ? 'critical' : stateClass === 'warn' ? 'outside' : ''}"><span class="feature-name">${escapeHTML(item.name || item.key || 'FEATURE')}</span><span class="feature-value">${escapeHTML(formatSnapshotNumber(item.value, item.unit || ''))}</span><span class="feature-band">${escapeHTML(formatSnapshotNumber(normalBand.low, item.unit || ''))} – ${escapeHTML(formatSnapshotNumber(normalBand.high, item.unit || ''))}</span><span class="state ${stateClass}">${escapeHTML(stateLabel)}</span><div class="feature-track"><i style="width:${width}%"></i></div></div>`;
+       }).join('') : '<div class="investigation-note">No alert-time feature snapshot was available for this record; the existing incident data remains intact.</div>';
+       $('#incidentSourceSummary').innerHTML = [
+         investigationValue('MODE', source.mode || (incident.source === 'SYNTHETIC' ? 'SIMULATION' : 'REAL DATA')), investigationValue('SOURCE', source.name || incident.source || 'SYNTHETIC'), investigationValue('LABEL', source.label || incident.sourceLabel || '—'), investigationValue('FAULT FAMILY', source.faultFamily || incident.faultFamily || '—'), investigationValue('DATASET', dataset.name || 'BROWSER SIMULATION'), investigationValue('PATH', dataset.path || '—')
+       ].join('');
+       const telemetry = snapshot.telemetry;
+       $('#incidentTelemetrySummary').innerHTML = telemetry ? [
+         investigationValue('WINDOW', `${telemetry.windowSize || WINDOW} SAMPLES · ${telemetry.sampleRate || SAMPLE_RATE} HZ`), investigationValue('AVAILABLE', `${telemetry.availableSamples || 0} · ${telemetry.windowReady ? 'READY' : 'FILLING'}`), investigationValue('OPERATING POINT', telemetry.operatingPoint ? `${telemetry.operatingPoint.rpm || '—'} RPM · ${Math.round((telemetry.operatingPoint.load || 0) * 100)} % LOAD` : '—'), investigationValue('TEMPERATURE', telemetry.operatingPoint ? formatSnapshotNumber(telemetry.operatingPoint.temperature, '°C') : '—'), investigationValue('DATASET ROW', telemetry.datasetWindow && telemetry.datasetWindow.index !== null ? `${telemetry.datasetWindow.index} / ${telemetry.datasetWindow.rows}` : '—'), investigationValue('SOURCE TIME', telemetry.datasetWindow && telemetry.datasetWindow.sourceTime ? telemetry.datasetWindow.sourceTime : '—')
+       ].join('') : '<div class="investigation-note">Telemetry/window summary was not available for this legacy record.</div>';
+       const eventContainer = $('#incidentEventHistory'); const events = (Array.isArray(incident.events) && incident.events.length ? incident.events : snapshot.eventHistory || []).slice().reverse();
+       eventContainer.innerHTML = events.length ? events.map(event => `<div class="investigation-event"><span class="event-time">${escapeHTML(incidentDisplayDate(event.t))}</span><span class="event-message">${escapeHTML(event.m || event.message || 'Incident event')}</span></div>`).join('') : '<div class="investigation-note">No event history recorded.</div>';
+     }
+
+     function selectIncident(id, options = {}) {
+       const incident = incidents.find(item => item.id === id);
+       if (!incident) return null;
+       selectedIncidentId = incident.id;
+       saveIncidents(); renderLedger(); renderIncidentInvestigation();
+       const investigation = $('#incidentInvestigation');
+       if (options.scroll && investigation && typeof investigation.scrollIntoView === 'function') investigation.scrollIntoView({ behavior: 'smooth', block: 'start' });
+       return incident;
+     }
+
+     function downloadSelectedIncidentReport() {
+       const incident = selectedIncident();
+       if (!incident) return;
+       const report = { reportVersion: 1, generatedAt: new Date().toISOString(), incident: JSON.parse(JSON.stringify(incident)) };
+       const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
+       const link = document.createElement('a'); link.href = url; link.download = `axon_edge_${incident.id.toLowerCase()}_report.json`; link.click();
+       setTimeout(() => URL.revokeObjectURL(url), 0); log('INFO', `EXPORT · ${incident.id} JSON investigation report written`);
+     }
+
+     function computeStats() {
+      const times = incidents.map(incident => new Date(incident.ts).getTime()).sort((a, b) => a - b);
+      let mtbf = 0;
+      if (times.length > 1) { let total = 0; for (let index = 1; index < times.length; index += 1) total += times[index] - times[index - 1]; mtbf = total / (times.length - 1) / 3600000; }
+      const closed = incidents.filter(incident => incident.status === 'CLOSED' && incident.mttr);
+      const mttr = closed.length ? closed.reduce((sum, incident) => sum + incident.mttr, 0) / closed.length : 0;
+      $('#kpiMtbf').innerHTML = `${mtbf ? mtbf.toFixed(1) : '—'}<u>h</u>`;
+      $('#kpiMttr').innerHTML = `${mttr ? mttr.toFixed(0) : '—'}<u>min</u>`;
+      $('#kpiIncidents').innerHTML = `${incidents.length}<u>total</u>`;
+      const peak = alertHistogram.indexOf(Math.max(...alertHistogram));
+      $('#peakHour').textContent = `${String(peak).padStart(2, '0')}:00`;
+      $('#last24').textContent = alertHistogram.reduce((sum, value) => sum + value, 0);
+    }
+
+    function renderCalendar() {
+      const calendar = $('#calendar');
+      if (calendar.children.length !== 28) { calendar.innerHTML = ''; for (let index = 0; index < 28; index += 1) calendar.appendChild(document.createElement('div')); }
+      for (let index = 0; index < 28; index += 1) {
+        const day = new Date(); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - (27 - index));
+        const next = new Date(day); next.setDate(next.getDate() + 1);
+        const count = incidents.filter(incident => { const time = new Date(incident.ts); return time >= day && time < next; }).length;
+        const cell = calendar.children[index]; cell.className = count === 0 ? '' : count < 2 ? 'l1' : count < 4 ? 'l2' : 'l3'; cell.title = `${count} incident(s)`;
+      }
+    }
+
+    /* ---------------- threshold view ---------------- */
+    function formatFeature(value, feature) {
+      if (!Number.isFinite(value)) return '—';
+      return Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(feature === 6 ? 1 : 3);
+    }
+
+     function featureStatus(value, feature) {
+       const z = Math.abs(value - baseline.mean[feature]) / Math.max(baseline.std[feature], 1e-6);
+       if (z > 4.5) return { label: 'CRITICAL', className: 'crit', z };
+       if (z > 2.5) return { label: 'OUTSIDE', className: 'warn', z };
+       return { label: 'NORMAL', className: 'ok', z };
+     }
+
+     function bearingFeatureStatus(value, feature) {
+       if (!Number.isFinite(value)) return { label: 'NO DATA', className: '', z: 0 };
+       const z = Math.abs(value - bearingBaseline.mean[feature]) / Math.max(bearingBaseline.std[feature], 1e-6);
+       if (z > 4.5) return { label: 'CRITICAL', className: 'crit', z };
+       if (z > 2.5) return { label: 'OUTSIDE', className: 'warn', z };
+       return { label: 'NORMAL', className: 'ok', z };
+     }
+
+     function activeFeatureFields() {
+       return sim.dataset && sim.dataset.kind === 'bearing' ? BEARING_FEATURE_FIELDS : FEATURE_NAMES.map((name, index) => ({ name, unit: FEATURE_UNITS[index], key: name }));
+     }
+
+      function renderFeatureList(fields = activeFeatureFields()) {
+        const list = $('#featureList'); list.innerHTML = '';
+        $('#featureBandTag').textContent = `${fields.length}-D · ${sim.dataset && sim.dataset.kind === 'bearing' ? 'REAL DATA' : sim.dataset ? 'REAL DATA' : 'LIVE'}`;
+        fields.forEach((field, feature) => {
+         const row = document.createElement('div'); row.className = 'feature-row'; row.id = `feature-${feature}`;
+         const isBearing = fields === BEARING_FEATURE_FIELDS || (sim.dataset && sim.dataset.kind === 'bearing');
+         const low = isBearing ? bearingBaseline.low[feature] : baseline.low[feature];
+         const high = isBearing ? bearingBaseline.high[feature] : baseline.high[feature];
+         const unit = field.unit || '—';
+         const format = value => !Number.isFinite(value) ? '—' : Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(feature === 6 || isBearing && feature > 4 ? 2 : 3);
+         row.innerHTML = `<span class="name">${escapeHTML(field.name)}</span><span class="value">—</span><span class="band">${format(low)}–${format(high)} ${escapeHTML(unit)}</span><span class="state ok">NORMAL</span><div class="band-track"><i></i></div>`;
+         list.appendChild(row);
+       });
+     }
+
+      function updateFeatureList(features) {
+        if (sim.dataset && sim.dataset.kind === 'bearing') return;
+        latestFeatureValues = Array.isArray(features) ? features.slice() : null;
+        let outside = 0;
+       features.forEach((value, feature) => {
+        const row = $(`#feature-${feature}`); if (!row) return;
+        const status = featureStatus(value, feature); if (status.className !== 'ok') outside += 1;
+        row.querySelector('.value').textContent = `${formatFeature(value, feature)} ${FEATURE_UNITS[feature]}`;
+        const stateElement = row.querySelector('.state'); stateElement.className = `state ${status.className}`; stateElement.textContent = status.label;
+        const bar = row.querySelector('.band-track i'); bar.style.width = `${clamp(8 + status.z * 18, 8, 100)}%`; bar.style.background = status.className === 'crit' ? 'var(--red)' : status.className === 'warn' ? 'var(--amber)' : 'var(--green)';
+       });
+       state.featuresOut = outside;
+     }
+
+      function updateBearingFeatureList(features) {
+        latestFeatureValues = Array.isArray(features) ? features.slice() : null;
+        let outside = 0;
+       features.forEach((value, feature) => {
+         const row = $(`#feature-${feature}`); if (!row) return;
+         const status = bearingFeatureStatus(value, feature); if (status.className !== 'ok') outside += 1;
+         const field = BEARING_FEATURE_FIELDS[feature];
+         const formatted = Number.isFinite(value) ? `${Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(feature === 6 || feature > 4 ? 2 : 3)} ${field.unit}` : '—';
+         row.querySelector('.value').textContent = formatted;
+         const stateElement = row.querySelector('.state'); stateElement.className = `state ${status.className}`; stateElement.textContent = status.label;
+         const bar = row.querySelector('.band-track i'); bar.style.width = `${clamp(8 + status.z * 18, 8, 100)}%`; bar.style.background = status.className === 'crit' ? 'var(--red)' : status.className === 'warn' ? 'var(--amber)' : 'var(--green)';
+       });
+       state.featuresOut = outside;
+     }
+
+     function updateThresholdText() {
+       const threshold = state.threshold.toFixed(2); const clear = (state.threshold * .8).toFixed(2);
+       $('#thresholdValue').textContent = threshold; $('#thresholdChip').textContent = threshold; $('#modelThreshold').textContent = threshold;
+       $('#cardGate').textContent = `SCORE ≥ ${threshold}`; $('#cardClear').textContent = `SCORE < ${clear}`;
+     }
+
+      function evaluateDetectorResult(result, incidentType, detail, features) {
+       state.score = lerp(state.score, result.score, .55);
+       state.confidence = clamp(99.9 - state.score * 46, 52, 99.9);
+       state.featuresOut = result.outside;
+       scoreHistory.push(state.score); if (scoreHistory.length > 220) scoreHistory.shift();
+
+       const wasAlert = state.alert;
+       if (!state.alert && state.score >= state.threshold) {
+         state.alert = true; state.cleanWindows = 0;
+          openIncident(incidentType || (sim.fault === 'healthy' ? 'imbalance' : sim.fault), state.score, { features, result, detail });
+         log('WARN', `THRESHOLD CROSSING · score ${state.score.toFixed(3)} ≥ θ ${state.threshold.toFixed(2)} · ${result.outside}/${sim.dataset && sim.dataset.kind === 'bearing' ? BEARING_FEATURE_FIELDS.length : FEATURE_COUNT} features outside normal band${detail ? ` · ${detail}` : ''}`);
+       } else if (state.alert) {
+         if (state.score < state.threshold * .8) state.cleanWindows += 1; else state.cleanWindows = 0;
+         if (state.cleanWindows >= 3) {
+          state.alert = false; state.cleanWindows = 0;
+          if (wasAlert) log('OK', `SIGNAL NOMINAL · ${state.threshold.toFixed(2)} gate cleared after 3 clean windows · relay released`);
+         }
+       }
+     }
+
+      function updateDetector(features) {
+        updateFeatureList(features);
+         evaluateDetectorResult(scoreFeatures(features), sim.fault === 'healthy' ? 'imbalance' : sim.fault, sim.dataset ? `source label ${state.datasetLabel}` : 'synthetic / derived features', features);
+     }
+
+     /* ---------------- dataset intake ---------------- */
+     function splitDelimitedLine(line, delimiter) {
+       const values = []; let current = ''; let quoted = false;
+       for (let index = 0; index < line.length; index += 1) {
+        const character = line[index];
+        if (character === '"') {
+          if (quoted && line[index + 1] === '"') { current += '"'; index += 1; } else quoted = !quoted;
+        } else if (character === delimiter && !quoted) { values.push(current.trim()); current = ''; } else current += character;
+       }
+       values.push(current.trim()); return values;
+     }
+
+     function compactHeader(value) {
+       return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]/g, '');
+     }
+
+     function parseCellValue(value) {
+       const trimmed = String(value == null ? '' : value).trim();
+       if (!trimmed) return '';
+       const numeric = Number(trimmed);
+       if (Number.isFinite(numeric)) return numeric;
+       const prefixNumeric = Number.parseFloat(trimmed);
+       return Number.isFinite(prefixNumeric) && /^[+-]?(?:\d|\.)/.test(trimmed) ? prefixNumeric : trimmed;
+     }
+
+     function numericCell(value) {
+       if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+       if (value === null || value === undefined || String(value).trim() === '') return null;
+       const parsed = Number.parseFloat(String(value).trim());
+       return Number.isFinite(parsed) ? parsed : null;
+     }
+
+     function findHeaderColumn(headers, aliases, excluded = new Set()) {
+       return headers.findIndex((header, column) => !excluded.has(column) && aliases.some(alias => header === alias || header.startsWith(alias)));
+     }
+
+     function findLabelColumn(headers, rows) {
+       const named = findHeaderColumn(headers, ['label', 'faultlabel', 'fault', 'class', 'classname', 'condition', 'target', 'status']);
+       if (named >= 0) return named;
+       return headers.findIndex((_, column) => {
+         const values = rows.slice(0, 120).map(row => row[column]).filter(value => value !== '' && value !== undefined && value !== null);
+         const nonNumeric = values.filter(value => numericCell(value) === null);
+         return nonNumeric.length >= 3 && nonNumeric.length / Math.max(values.length, 1) > .35 && nonNumeric.some(value => /normal|fault|anomal|healthy|bearing|gear/i.test(String(value)));
+       });
+     }
+
+     function findTimeColumn(headers) {
+       const named = findHeaderColumn(headers, ['timestamp', 'datetime', 'time', 'date', 'sample', 'index']);
+       return named >= 0 ? named : null;
+     }
+
+     function mapBearingColumns(headers, numeric) {
+       const aliases = {
+         max: ['max', 'maximum', 'peak'], min: ['min', 'minimum'], mean: ['mean', 'avg', 'average'],
+         sd: ['sd', 'std', 'standarddeviation', 'sigma'], rms: ['rms', 'rootmeansquare'],
+         skewness: ['skewness', 'skew'], kurtosis: ['kurtosis', 'kurt'], crest: ['crestfactor', 'crest'], form: ['formfactor', 'form']
+       };
+       const mapping = {};
+       Object.keys(aliases).forEach(key => {
+         const column = findHeaderColumn(headers, aliases[key]);
+         mapping[key] = column >= 0 && numeric.includes(column) ? column : null;
+       });
+       return mapping;
+     }
+
+     function mapRawColumns(headers, numeric, labelColumn, timeColumn) {
+       const excluded = new Set([labelColumn, timeColumn].filter(column => column !== null && column !== undefined && column >= 0));
+       const aliases = {
+         x: ['accelx', 'accelerometerx', 'accelerationx', 'axisx', 'a1', 'channel1', 'ch1', 'x'],
+         y: ['accely', 'accelerometery', 'accelerationy', 'axisy', 'a2', 'channel2', 'ch2', 'y'],
+         z: ['accelz', 'accelerometerz', 'accelerationz', 'axisz', 'a3', 'channel3', 'ch3', 'z'],
+         temp: ['temperature', 'temp', 'ntc', 'thermistor'],
+         aux: ['a4', 'accel4', 'channel4', 'ch4', 'aux']
+       };
+       const used = new Set(excluded);
+       const pickNamed = key => {
+         const column = findHeaderColumn(headers, aliases[key], used);
+         if (column >= 0 && numeric.includes(column)) { used.add(column); return column; }
+         return null;
+       };
+       const fallback = numeric.filter(column => !used.has(column));
+       const pick = (key, fallbackIndex) => {
+         const named = pickNamed(key);
+         if (named !== null) return named;
+         const column = fallback.find(candidate => !used.has(candidate)) ?? fallback[fallbackIndex] ?? numeric[fallbackIndex] ?? null;
+         if (column !== null && column !== undefined) used.add(column);
+         return column;
+       };
+       const x = pick('x', 0); const y = pick('y', 1); const z = pick('z', 2);
+       const temp = pickNamed('temp'); const aux = pickNamed('aux');
+       return [x, y, z, temp, aux];
+     }
+
+      function columnRanges(rows, numeric) {
+        const minima = []; const maxima = [];
+       numeric.forEach(column => {
+         let min = Infinity; let max = -Infinity;
+         rows.forEach(row => { const value = numericCell(row[column]); if (value !== null) { min = Math.min(min, value); max = Math.max(max, value); } });
+         minima[column] = Number.isFinite(min) ? min : 0; maxima[column] = Number.isFinite(max) ? max : 1;
+       });
+        return { minima, maxima };
+      }
+
+      function setSourceCardStatus(sourceKey, status) {
+        const card = $(`#sourceGrid .source-card[data-source="${sourceKey}"]`);
+        if (!card) return;
+        card.classList.remove('loading', 'ready', 'unavailable');
+        if (status) card.classList.add(status);
+        const statusElement = card.querySelector('.source-status');
+        if (statusElement) statusElement.textContent = sourceKey === 'synthetic' ? 'ACTIVE' : status === 'loading' ? 'LOADING' : status === 'ready' ? 'READY' : status === 'unavailable' ? 'UNAVAILABLE' : 'LOAD PATH';
+      }
+
+      function setSourceMode(sourceKey, dataset, path, status = 'ready') {
+        const isSynthetic = sourceKey === 'synthetic'; const profile = REAL_DATASETS[sourceKey] || {};
+        sim.sourceKey = sourceKey; sim.sourceStatus = status;
+        $('#datasetTag').textContent = isSynthetic ? 'READY' : status === 'loading' ? 'LOADING' : status === 'ready' ? 'REPLAY' : 'UNAVAILABLE';
+        $$('#sourceGrid .source-card').forEach(card => card.classList.toggle('active', card.dataset.source === sourceKey));
+        $$('#sourceGrid .source-card').forEach(card => { if (card.dataset.source !== 'synthetic' && card.dataset.source !== sourceKey && !card.classList.contains('unavailable')) setSourceCardStatus(card.dataset.source, ''); });
+        setSourceCardStatus(sourceKey, isSynthetic ? 'active' : status);
+        const banner = $('#modeBanner'); banner.classList.toggle('sim', isSynthetic);
+        if (isSynthetic) {
+          $('#modeLabel').textContent = 'BROWSER SIMULATION / SYNTHETIC BASELINE';
+          $('#modeDetail').textContent = 'CSV / TSV intake remains available';
+          $('#sourceStatusLine').textContent = 'Synthetic stream is active. Select a project path to try a real-data replay; missing files fall back safely.';
+          $('#streamTag').textContent = 'LIVE SIM'; $('#streamMode').textContent = 'SIMULATION'; $('#sourceValue').textContent = 'SYNTHETIC'; $('#datasetLabelValue').textContent = 'SYNTHETIC BASELINE';
+          $('#cardDataset').textContent = 'SYNTHETIC BRING-UP'; $('#inferenceValue').textContent = 'BROWSER THRESHOLD ENGINE'; $('#railMode').textContent = 'SIMULATION'; $('#nodeState').textContent = 'SIM ONLINE';
+          state.datasetLabel = 'SYNTHETIC BASELINE'; state.faultFamily = 'SYNTHETIC'; state.sourceLabel = 'SYNTHETIC';
+        } else {
+          const isCalibration = sourceKey === 'kirloskar';
+          $('#modeLabel').textContent = isCalibration ? 'REAL DATA / NORMAL CALIBRATION / REPLAY' : 'REAL DATA / SOURCE-LABELLED BRING-UP';
+          $('#modeDetail').textContent = `${profile.name || 'User CSV'} · browser parser / threshold engine only`;
+          $('#sourceStatusLine').textContent = status === 'loading' ? `Trying ${path || profile.path} …` : `${profile.name || path || 'User CSV'} loaded · ${dataset ? dataset.rows.length.toLocaleString() : '—'} rows · ${isCalibration ? 'healthy calibration bands' : 'source labels visible in telemetry / ledger'}`;
+          $('#streamTag').textContent = status === 'loading' ? 'LOADING DATA' : 'REAL DATA'; $('#streamMode').textContent = 'REAL DATA'; $('#sourceValue').textContent = (profile.name || dataset && dataset.name || sourceKey).toUpperCase().slice(0, 22); $('#cardDataset').textContent = isCalibration ? 'REAL DATA / CALIBRATION' : 'REAL DATA / SOURCE-LABELLED'; $('#inferenceValue').textContent = 'BROWSER THRESHOLD ENGINE'; $('#railMode').textContent = 'REAL DATA'; $('#nodeState').textContent = status === 'loading' ? 'DATA LOADING' : 'DATA ONLINE';
+          if (dataset) { state.datasetLabel = dataset.defaultLabel || state.datasetLabel; state.faultFamily = isCalibration ? 'NORMAL CALIBRATION' : sourceKey === 'gearbox' ? 'GEARBOX ANOMALY' : 'SOURCE-LABELLED'; state.sourceLabel = state.datasetLabel; $('#datasetLabelValue').textContent = state.datasetLabel; }
+        }
+        const featureCount = sim.dataset && sim.dataset.kind === 'bearing' ? BEARING_FEATURE_FIELDS.length : FEATURE_COUNT;
+        $('#featureBandTag').textContent = `${featureCount}-D · ${isSynthetic ? 'LIVE' : 'REAL DATA'}`;
+      }
+
+      function activateSyntheticSource() {
+        realLoadToken += 1;
+        if (realLoadController) realLoadController.abort();
+        realLoadController = null;
+        sim.dataset = null; sim.datasetIndex = 0; sim.sourceKey = 'synthetic'; sim.sourceStatus = 'active'; sim.fault = 'healthy';
+        state.datasetLabel = 'SYNTHETIC BASELINE'; state.faultFamily = 'SYNTHETIC'; state.sourceLabel = 'SYNTHETIC';
+        clearBuffers(); $('#mapping').style.display = 'none'; renderFeatureList(FEATURE_NAMES.map((name, index) => ({ name, unit: FEATURE_UNITS[index], key: name }))); setSourceMode('synthetic', null, null, 'active');
+      }
+
+      function loadRealDataset(sourceKey) {
+        const profile = REAL_DATASETS[sourceKey]; if (!profile) return;
+        const requestToken = ++realLoadToken;
+        if (realLoadController) realLoadController.abort();
+        realLoadController = typeof AbortController === 'function' ? new AbortController() : null;
+        const requestOptions = { cache: 'no-store' };
+        if (realLoadController) requestOptions.signal = realLoadController.signal;
+        setSourceMode(sourceKey, null, profile.path, 'loading');
+        log('INFO', `REAL DATA REQUEST · ${profile.name.toUpperCase()} · ${profile.path}`);
+        fetch(profile.path, requestOptions).then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.text();
+        }).then(text => {
+          if (requestToken !== realLoadToken) return;
+          if (!ingestCSV(text, profile.name, { sourceKey, path: profile.path })) throw new Error('format not recognised');
+          realLoadController = null;
+          setSourceCardStatus(sourceKey, 'ready');
+        }).catch(error => {
+          if (requestToken !== realLoadToken || error.name === 'AbortError') return;
+          realLoadController = null;
+          activateSyntheticSource(); setSourceCardStatus(sourceKey, 'unavailable');
+          $('#sourceStatusLine').textContent = `${profile.path} unavailable (${error.message || 'load failed'}). Synthetic simulation remains active.`;
+          log('WARN', `REAL DATA UNAVAILABLE · ${profile.path} · synthetic simulation retained`);
+        });
+      }
+
+      function renderMapping(dataset) {
+       const body = $('#mappingBody'); body.innerHTML = '';
+       const rows = dataset.kind === 'bearing' ? BEARING_FEATURE_FIELDS.map(field => ({ column: dataset.featureMapping[field.key], channel: field.name, type: 'FEATURE' })) : [
+         { column: dataset.mapping[0], channel: 'ACCEL X', type: 'FLOAT32' }, { column: dataset.mapping[1], channel: 'ACCEL Y', type: 'FLOAT32' },
+         { column: dataset.mapping[2], channel: 'ACCEL Z', type: 'FLOAT32' }, { column: dataset.mapping[3], channel: 'TEMPERATURE', type: 'FLOAT32' },
+         { column: dataset.mapping[4], channel: 'AUX / A4', type: 'FLOAT32' }
+       ];
+       rows.forEach(item => {
+         if (item.column === null || item.column === undefined || item.column < 0) return;
+         const column = item.column; const min = dataset.minima[column]; const max = dataset.maxima[column];
+         const row = document.createElement('tr');
+         row.innerHTML = `<td>${escapeHTML(dataset.header[column])}</td><td class="channel">${escapeHTML(item.channel)}</td><td>${Number.isFinite(min) ? min.toFixed(3) : '—'}</td><td>${Number.isFinite(max) ? max.toFixed(3) : '—'}</td><td>${item.type}</td>`;
+         body.appendChild(row);
+       });
+       $('#mapping').style.display = body.children.length ? 'block' : 'none';
+     }
+
+     function applyFeatureBaseline(target, samples) {
+       if (!samples.length) return false;
+       for (let feature = 0; feature < target.mean.length; feature += 1) {
+         const values = samples.map(row => row[feature]).filter(value => Number.isFinite(value));
+         if (!values.length) continue;
+         const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+         const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+         const std = Math.max(Math.sqrt(variance), Math.max(Math.abs(mean) * .04, .01));
+         target.mean[feature] = mean; target.std[feature] = std; target.low[feature] = mean - 2.5 * std; target.high[feature] = mean + 2.5 * std;
+       }
+       target.samples = samples.length;
+       return true;
+     }
+
+     function bearingFeaturesFromRow(dataset, row) {
+       return BEARING_FEATURE_FIELDS.map(field => numericCell(row[dataset.featureMapping[field.key]]));
+     }
+
+     function datasetLabelFromRow(dataset, row) {
+       if (!dataset || dataset.labelColumn === null || dataset.labelColumn === undefined || dataset.labelColumn < 0) return dataset.defaultLabel || 'UNLABELLED';
+       return cleanDatasetLabel(row[dataset.labelColumn], dataset.defaultLabel || 'UNLABELLED');
+     }
+
+     function datasetFaultFamily(label) {
+       const normalized = cleanDatasetLabel(label, '').toLowerCase();
+       if (isNormalDatasetLabel(normalized)) return sim.sourceKey === 'kirloskar' ? 'NORMAL CALIBRATION' : 'NORMAL';
+       if (sim.sourceKey === 'gearbox' || normalized.includes('gear')) return 'GEARBOX ANOMALY';
+       if (normalized.includes('outer')) return 'OUTER-RACE FAULT';
+       return 'BEARING FAULT';
+     }
+
+     function updateDatasetTelemetry(dataset, row) {
+       const label = datasetLabelFromRow(dataset, row);
+       const family = datasetFaultFamily(label);
+        const changed = state.datasetLabel !== label || state.faultFamily !== family;
+        state.datasetLabel = label; state.faultFamily = family; state.sourceLabel = label;
+        $('#datasetLabelValue').textContent = label;
+        const now = Date.now();
+        if (changed && dataset.kind !== 'simulation' && now - state.lastDatasetLog > 800) { state.lastDatasetLog = now; log('INFO', `${dataset.displayName.toUpperCase()} · source label ${label} · fault family ${family}`); }
+     }
+
+     function scoreBearingFeatures(features, label) {
+       let maximumZ = 0; let totalZ = 0; let outside = 0; let valid = 0;
+       features.forEach((value, feature) => {
+         if (!Number.isFinite(value)) return;
+         valid += 1;
+         const z = Math.abs(value - bearingBaseline.mean[feature]) / Math.max(bearingBaseline.std[feature], 1e-6);
+         maximumZ = Math.max(maximumZ, z); totalZ += z;
+         if (value < bearingBaseline.low[feature] || value > bearingBaseline.high[feature]) outside += 1;
+       });
+       const averageZ = valid ? totalZ / valid : 0;
+       const calculated = clamp(.018 + maximumZ * .082 + averageZ * .025, 0, 1);
+       const sourceLabelledFault = !isNormalDatasetLabel(label);
+       return { score: sourceLabelledFault ? Math.max(.62, calculated) : calculated, outside };
+     }
+
+     function consumeBearingFeatureRow() {
+       if (!sim.dataset || !sim.dataset.rows.length) return false;
+       const dataset = sim.dataset; const row = dataset.rows[sim.datasetIndex % dataset.rows.length]; const features = bearingFeaturesFromRow(dataset, row);
+       sim.datasetIndex = (sim.datasetIndex + 1) % dataset.rows.length;
+       if (!features.some(value => Number.isFinite(value))) return false;
+       updateDatasetTelemetry(dataset, row); updateBearingFeatureList(features);
+       const mean = Number.isFinite(features[2]) ? features[2] : 0; const spread = Number.isFinite(features[3]) ? Math.abs(features[3]) : Math.abs((features[0] || 0) - (features[1] || 0)) / 2; const amplitude = Number.isFinite(features[4]) ? Math.abs(features[4]) : Math.abs((features[0] || 0) - (features[1] || 0)) / 2;
+       for (let sample = 0; sample < 16; sample += 1) {
+         const phase = sim.phase * 2 * Math.PI * 30 + sample * .35;
+         push(buffers.x, mean + amplitude * Math.sin(phase)); push(buffers.y, mean * .72 + spread * Math.sin(phase + 1.1)); push(buffers.z, mean * .48 + spread * Math.sin(phase + 2.2)); push(buffers.temp, sim.temp); sim.phase += 1 / SAMPLE_RATE;
+       }
+       const label = datasetLabelFromRow(dataset, row); const result = scoreBearingFeatures(features, label);
+        evaluateDetectorResult(result, faultTypeForDatasetLabel(label), `source label ${label}`, features);
+       return true;
+     }
+
+     function ingestCSV(text, fileName, options = {}) {
+       const lines = text.split(/\r?\n/).filter(line => line.trim());
+       if (lines.length < 2) { log('FAULT', `PARSE ERROR · ${fileName} contains no data rows`); return false; }
+       const delimiter = (lines[0].match(/\t/g) || []).length > (lines[0].match(/,/g) || []).length ? '\t' : ',';
+       const header = splitDelimitedLine(lines[0], delimiter).map(value => value.replace(/^"|"$/g, '').trim());
+       const rows = [];
+       for (let line = 1; line < Math.min(lines.length, 50000); line += 1) {
+         const cells = splitDelimitedLine(lines[line], delimiter);
+         if (cells.some(cell => cell.trim())) rows.push(cells.map(parseCellValue));
+       }
+       if (!rows.length) { log('FAULT', `PARSE ERROR · ${fileName} contains no usable rows`); return false; }
+       const numeric = [];
+       for (let column = 0; column < header.length; column += 1) {
+         let valid = 0; let total = 0;
+         rows.slice(0, 120).forEach(row => { if (row[column] !== undefined && row[column] !== null && row[column] !== '') { total += 1; if (numericCell(row[column]) !== null) valid += 1; } });
+         if (total && valid / total > .7) numeric.push(column);
+       }
+       if (!numeric.length) { log('FAULT', 'PARSE ERROR · no numeric columns detected'); return; }
+       const headers = header.map(compactHeader); const labelColumn = findLabelColumn(headers, rows); const timeColumn = findTimeColumn(headers);
+       const featureMapping = mapBearingColumns(headers, numeric); const featureMatches = Object.values(featureMapping).filter(column => column !== null).length;
+       const sourceKey = options.sourceKey || 'user'; const sourceProfile = REAL_DATASETS[sourceKey] || {};
+        const bearingLike = featureMatches === BEARING_FEATURE_FIELDS.length && labelColumn >= 0;
+       const ranges = columnRanges(rows, numeric);
+       if (bearingLike) {
+         const dataset = { kind: 'bearing', name: fileName, displayName: sourceProfile.name || fileName, sourcePath: options.path || '', header, headers, rows, numeric, labelColumn: labelColumn >= 0 ? labelColumn : null, timeColumn, featureMapping, minima: ranges.minima, maxima: ranges.maxima, defaultLabel: sourceKey === 'bearing' ? 'SOURCE-LABELLED BEARING' : 'FEATURE ROW' };
+         sim.dataset = dataset; sim.sourceKey = sourceKey; sim.datasetIndex = 0; sim.fault = 'bearing'; clearBuffers(); sim.phase = 0; sim.time = 0;
+          const normalRows = rows.filter(row => isNormalDatasetLabel(datasetLabelFromRow(dataset, row)));
+          if (normalRows.length) {
+            applyFeatureBaseline(bearingBaseline, normalRows.map(row => bearingFeaturesFromRow(dataset, row)));
+          } else {
+            log('WARN', `BEARING CALIBRATION · no normal-labelled rows in ${fileName} · previous normal bands retained`);
+          }
+         renderFeatureList(BEARING_FEATURE_FIELDS); renderMapping(dataset); setSourceMode(sourceKey, dataset, options.path);
+         log('OK', `INGEST ${fileName} · ${rows.length} feature rows · MAX/MIN/MEAN/SD/RMS/SKEWNESS/KURTOSIS/CREST/FORM mapped · ${normalRows.length} normal calibration rows`);
+         return true;
+       }
+       if (sourceKey === 'bearing') { log('FAULT', `PARSE ERROR · ${fileName} lacks the expected bearing feature columns`); return false; }
+        const mapping = mapRawColumns(headers, numeric, labelColumn, timeColumn);
+        if (mapping.slice(0, 3).some(column => column === null || column === undefined)) { log('FAULT', `PARSE ERROR · ${fileName} needs accel_x/y/z or a1/a2/a3 columns`); return false; }
+        if (rows.length < WINDOW) {
+          log('FAULT', `PARSE ERROR · ${fileName} contains ${rows.length} raw rows; at least ${WINDOW} samples are required for one edge window`);
+          return false;
+        }
+        const dataset = { kind: 'raw', name: fileName, displayName: sourceProfile.name || fileName, sourcePath: options.path || '', header, headers, rows, numeric, labelColumn: labelColumn >= 0 ? labelColumn : null, timeColumn, mapping, minima: ranges.minima, maxima: ranges.maxima, defaultLabel: sourceKey === 'gearbox' ? 'GEARBOX ANOMALY / SOURCE-LABELLED' : sourceKey === 'kirloskar' ? 'NORMAL CALIBRATION' : 'RAW REPLAY' };
+       sim.dataset = dataset; sim.sourceKey = sourceKey; sim.datasetIndex = 0; sim.fault = sourceKey === 'gearbox' ? 'gearbox' : 'healthy'; clearBuffers(); sim.phase = 0; sim.time = 0;
+       if (sourceKey === 'kirloskar') calibrateRawBaseline(dataset);
+       renderFeatureList(FEATURE_NAMES.map((name, index) => ({ name, unit: FEATURE_UNITS[index], key: name }))); renderMapping(dataset); setSourceMode(sourceKey, dataset, options.path);
+       log('OK', `INGEST ${fileName} · ${rows.length} raw rows · ${numeric.length} numeric columns · ${mapping[4] !== null ? 'A1..A4 / AUX mapped' : 'ACCEL XYZ mapped'} · replay armed`);
+       return true;
+     }
+
+     function datasetValueAt(dataset, rowIndex, column, low, high) {
+       if (column === null || column === undefined || !dataset) return 0;
+       const row = dataset.rows[rowIndex % dataset.rows.length]; const value = numericCell(row[column]);
+       if (value === null) return 0;
+       if (!sim.adaptiveScale) return value;
+       const min = dataset.minima[column]; const max = dataset.maxima[column];
+       return low + (value - min) / Math.max(max - min, 1e-9) * (high - low);
+     }
+
+     function datasetValue(column, low, high) {
+       return sim.dataset ? datasetValueAt(sim.dataset, sim.datasetIndex, column, low, high) : 0;
+     }
+
+     function calibrateRawBaseline(dataset) {
+       const x = []; const y = []; const z = []; const temperature = []; const samples = [];
+       const limit = Math.min(dataset.rows.length, 16000);
+       for (let index = 0; index < limit; index += 1) {
+         x.push(datasetValueAt(dataset, index, dataset.mapping[0], -1.35, 1.35)); y.push(datasetValueAt(dataset, index, dataset.mapping[1], -1.25, 1.25)); z.push(datasetValueAt(dataset, index, dataset.mapping[2], -1.25, 1.25));
+         temperature.push(dataset.mapping[3] === null ? 42 : datasetValueAt(dataset, index, dataset.mapping[3], 32, 86));
+         if (index >= WINDOW && index % 128 === 0) samples.push(extractFeaturesFromChannels(x, y, z, temperature));
+       }
+       if (applyFeatureBaseline(baseline, samples)) log('OK', `NORMAL CALIBRATION · ${samples.length} raw feature windows · μ ± 2.5σ bands updated`);
+       else log('WARN', 'NORMAL CALIBRATION · insufficient raw windows · synthetic baseline retained');
+     }
+
+     function consumeDatasetSample() {
+       if (!sim.dataset || !sim.dataset.rows.length) return false;
+       if (sim.dataset.kind === 'bearing') return consumeBearingFeatureRow();
+       const dataset = sim.dataset; const row = dataset.rows[sim.datasetIndex % dataset.rows.length]; updateDatasetTelemetry(dataset, row); const mapping = dataset.mapping;
+       push(buffers.x, datasetValue(mapping[0], -1.35, 1.35)); push(buffers.y, datasetValue(mapping[1], -1.25, 1.25)); push(buffers.z, datasetValue(mapping[2], -1.25, 1.25));
+       const temperature = mapping[3] === null ? sim.temp : datasetValue(mapping[3], 32, 86); sim.temp = temperature; push(buffers.temp, temperature);
+       if (mapping[4] !== null && mapping[4] !== undefined) push(buffers.aux, datasetValue(mapping[4], -1.25, 1.25));
+       sim.datasetIndex = (sim.datasetIndex + 1) % dataset.rows.length; return true;
+     }
+
+    /* ---------------- canvas rendering ---------------- */
+    function canvasContext(canvas) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const width = canvas.clientWidth || Number(canvas.getAttribute('width')) || 300;
+      const height = canvas.clientHeight || Number(canvas.getAttribute('height')) || 200;
+      const targetWidth = Math.max(1, Math.floor(width * dpr)); const targetHeight = Math.max(1, Math.floor(height * dpr));
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) { canvas.width = targetWidth; canvas.height = targetHeight; }
+      const context = canvas.getContext('2d'); context.setTransform(dpr, 0, 0, dpr, 0, 0); return { context, width, height };
+    }
+
+    function drawGrid(context, width, height, columns, rows) {
+      context.strokeStyle = 'rgba(255,176,32,.07)'; context.lineWidth = 1;
+      for (let column = 1; column < columns; column += 1) { context.beginPath(); context.moveTo(width * column / columns, 0); context.lineTo(width * column / columns, height); context.stroke(); }
+      for (let row = 1; row < rows; row += 1) { context.beginPath(); context.moveTo(0, height * row / rows); context.lineTo(width, height * row / rows); context.stroke(); }
+    }
+
+    function drawHero(time) {
+      const canvas = $('#heroCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height);
+      for (let layer = 0; layer < 9; layer += 1) {
+        const base = height * (.12 + layer * .095); context.beginPath();
+        for (let pixel = 0; pixel <= width; pixel += 6) {
+          const fraction = pixel / Math.max(width, 1);
+          const y = base + Math.sin(fraction * 9 + time * .0006 + layer * .7) * (12 + layer * 1.6) + Math.sin(fraction * 23 - time * .0011 + layer) * (5 + layer * .5) + Math.sin(fraction * 61 + time * .0021 + layer * 2.1) * 2.2;
+          pixel === 0 ? context.moveTo(pixel, y) : context.lineTo(pixel, y);
+        }
+        context.strokeStyle = `rgba(255,176,32,${.055 + layer * .011})`; context.stroke();
+      }
+    }
+
+    function drawWave() {
+      const canvas = $('#waveCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); drawGrid(context, width, height, 8, 5);
+      const length = buffers.x.length; if (length < 4) return;
+      const center = height * .38; const amplitude = height * .26; const step = Math.max(1, Math.floor(length / Math.max(width, 1) * 1.2));
+      function drawLine(values, color, fill) {
+        context.beginPath(); let point = 0;
+        for (let index = 0; index < length; index += step) { const x = index / (length - 1) * width; const y = center - clamp(values[index], -2.2, 2.2) * amplitude / 2.2; point === 0 ? context.moveTo(x, y) : context.lineTo(x, y); point += 1; }
+        if (fill) { context.save(); context.lineTo(width, center + amplitude * 1.2); context.lineTo(0, center + amplitude * 1.2); context.closePath(); const gradient = context.createLinearGradient(0, center - amplitude, 0, center + amplitude); gradient.addColorStop(0, 'rgba(255,176,32,.16)'); gradient.addColorStop(1, 'rgba(255,176,32,0)'); context.fillStyle = gradient; context.fill(); context.restore(); }
+        context.strokeStyle = color; context.lineWidth = 1.25; context.stroke();
+      }
+      drawLine(buffers.x, '#ffb020', true); drawLine(buffers.y, 'rgba(73,214,221,.85)', false); drawLine(buffers.z, 'rgba(47,224,139,.85)', false);
+      context.beginPath(); let point = 0;
+      for (let index = 0; index < length; index += step) { const x = index / (length - 1) * width; const y = height - 10 - ((buffers.temp[index] - 28) / 82) * (height * .3); point === 0 ? context.moveTo(x, y) : context.lineTo(x, y); point += 1; }
+      context.strokeStyle = '#ff4433'; context.lineWidth = 1.6; context.stroke(); context.font = '9px IBM Plex Mono, monospace'; context.fillStyle = 'rgba(108,133,142,.9)'; context.fillText('ACCEL (g)', 8, 14); context.fillText('TEMP (°C)', 8, height - 6);
+    }
+
+    function drawGauge() {
+      const canvas = $('#gaugeCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height);
+      const centerX = width / 2; const centerY = height * .86; const radius = Math.min(width, height * 1.32) * .42; const start = Math.PI * .82; const end = Math.PI * 2.18;
+      context.lineWidth = 11; context.lineCap = 'butt'; context.beginPath(); context.arc(centerX, centerY, radius, start, end); context.strokeStyle = '#122226'; context.stroke();
+      const gradient = context.createLinearGradient(centerX - radius, 0, centerX + radius, 0); gradient.addColorStop(0, '#2fe08b'); gradient.addColorStop(.52, '#ffb020'); gradient.addColorStop(1, '#ff4433');
+      context.beginPath(); context.arc(centerX, centerY, radius, start, start + (end - start) * state.score); context.strokeStyle = gradient; context.stroke();
+      for (let index = 0; index <= 10; index += 1) { const angle = start + (end - start) * index / 10; const inner = radius + 8; const outer = radius + (index % 5 === 0 ? 17 : 13); context.beginPath(); context.moveTo(centerX + Math.cos(angle) * inner, centerY + Math.sin(angle) * inner); context.lineTo(centerX + Math.cos(angle) * outer, centerY + Math.sin(angle) * outer); context.strokeStyle = index / 10 > state.threshold ? 'rgba(255,68,51,.7)' : 'rgba(108,133,142,.55)'; context.lineWidth = index % 5 === 0 ? 2 : 1; context.stroke(); }
+      const needleAngle = start + (end - start) * clamp(state.score, 0, 1); context.beginPath(); context.moveTo(centerX - Math.cos(needleAngle) * 8, centerY - Math.sin(needleAngle) * 8); context.lineTo(centerX + Math.cos(needleAngle) * (radius - 16), centerY + Math.sin(needleAngle) * (radius - 16)); context.strokeStyle = '#ff4433'; context.lineWidth = 2.4; context.stroke();
+      context.beginPath(); context.arc(centerX, centerY, 7, 0, Math.PI * 2); context.fillStyle = '#ffb020'; context.fill(); context.beginPath(); context.arc(centerX, centerY, 3, 0, Math.PI * 2); context.fillStyle = '#06090b'; context.fill();
+      context.font = '9px IBM Plex Mono, monospace'; context.fillStyle = 'rgba(108,133,142,.9)'; context.textAlign = 'left'; context.fillText('0.0', 6, height - 4); context.textAlign = 'right'; context.fillText('1.0', width - 6, height - 4); context.textAlign = 'center'; context.fillStyle = 'rgba(255,176,32,.8)'; context.fillText(`θ ${state.threshold.toFixed(2)}`, centerX, height - 4); context.textAlign = 'left';
+    }
+
+    function drawScore() {
+      const canvas = $('#scoreCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); drawGrid(context, width, height, 10, 4);
+      const y = value => height - 6 - clamp(value, 0, 1) * (height - 18); context.fillStyle = 'rgba(255,68,51,.1)'; context.fillRect(0, 0, width, y(state.threshold)); context.beginPath(); context.moveTo(0, y(state.threshold)); context.lineTo(width, y(state.threshold)); context.strokeStyle = 'rgba(255,68,51,.55)'; context.setLineDash([5, 4]); context.stroke(); context.setLineDash([]);
+      context.beginPath(); scoreHistory.forEach((value, index) => { const x = index / (scoreHistory.length - 1) * width; index ? context.lineTo(x, y(value)) : context.moveTo(x, y(value)); }); context.lineTo(width, height); context.lineTo(0, height); context.closePath(); const gradient = context.createLinearGradient(0, 0, 0, height); gradient.addColorStop(0, 'rgba(255,176,32,.3)'); gradient.addColorStop(1, 'rgba(255,176,32,0)'); context.fillStyle = gradient; context.fill();
+      context.beginPath(); scoreHistory.forEach((value, index) => { const x = index / (scoreHistory.length - 1) * width; index ? context.lineTo(x, y(value)) : context.moveTo(x, y(value)); }); context.strokeStyle = '#ffb020'; context.lineWidth = 1.6; context.stroke(); context.font = '8.5px IBM Plex Mono, monospace'; context.fillStyle = 'rgba(255,68,51,.75)'; context.fillText('ALERT THRESHOLD', 6, y(state.threshold) - 5);
+    }
+
+    function drawHealth() {
+      const canvas = $('#healthCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); drawGrid(context, width, height, 10, 5); const top = 12; const bottom = 20; const healthY = value => top + (100 - clamp(value, 0, 100)) / 100 * (height - top - bottom); const rulY = value => top + (1 - clamp(value, 0, 260) / 260) * (height - top - bottom);
+      context.fillStyle = 'rgba(255,68,51,.07)'; context.fillRect(0, healthY(60), width, height - bottom - healthY(60)); context.beginPath(); context.moveTo(0, healthY(60)); context.lineTo(width, healthY(60)); context.strokeStyle = 'rgba(255,68,51,.4)'; context.setLineDash([4, 4]); context.stroke(); context.setLineDash([]); context.font = '8.5px IBM Plex Mono, monospace'; context.fillStyle = 'rgba(255,68,51,.6)'; context.fillText('DEGRADATION ZONE', 6, healthY(60) - 5);
+      context.beginPath(); healthHistory.forEach((point, index) => { const x = index / (healthHistory.length - 1) * width; index ? context.lineTo(x, rulY(point.rul)) : context.moveTo(x, rulY(point.rul)); }); context.strokeStyle = 'rgba(255,176,32,.85)'; context.lineWidth = 1.5; context.stroke();
+      context.beginPath(); healthHistory.forEach((point, index) => { const x = index / (healthHistory.length - 1) * width; index ? context.lineTo(x, healthY(point.health)) : context.moveTo(x, healthY(point.health)); }); context.lineTo(width, height - bottom); context.lineTo(0, height - bottom); context.closePath(); const gradient = context.createLinearGradient(0, top, 0, height); gradient.addColorStop(0, 'rgba(47,224,139,.3)'); gradient.addColorStop(1, 'rgba(47,224,139,0)'); context.fillStyle = gradient; context.fill(); context.beginPath(); healthHistory.forEach((point, index) => { const x = index / (healthHistory.length - 1) * width; index ? context.lineTo(x, healthY(point.health)) : context.moveTo(x, healthY(point.health)); }); context.strokeStyle = '#2fe08b'; context.lineWidth = 2; context.stroke();
+      context.fillStyle = 'rgba(108,133,142,.9)'; context.fillText('100%', 6, healthY(100) + 10); context.fillText('60%', 6, healthY(60) - 8); context.fillText('0%', 6, height - bottom - 4); context.textAlign = 'right'; context.fillStyle = 'rgba(255,176,32,.85)'; context.fillText('260h', width - 6, rulY(260) + 10); context.fillText('0h', width - 6, height - bottom - 4); context.textAlign = 'left';
+    }
+
+    function drawHistogram() {
+      const canvas = $('#histCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); drawGrid(context, width, height, 12, 4); const maximum = Math.max(4, ...alertHistogram); const barWidth = width / 24;
+      alertHistogram.forEach((value, index) => { const barHeight = value / maximum * (height - 24); const gradient = context.createLinearGradient(0, height - barHeight, 0, height); const current = index === new Date().getHours(); gradient.addColorStop(0, current ? '#ff4433' : '#ffb020'); gradient.addColorStop(1, 'rgba(255,176,32,.1)'); context.fillStyle = gradient; context.fillRect(index * barWidth + 2, height - barHeight - 12, barWidth - 4, barHeight); if (index % 4 === 0) { context.fillStyle = 'rgba(108,133,142,.75)'; context.font = '8px IBM Plex Mono, monospace'; context.fillText(String(index).padStart(2, '0'), index * barWidth + 2, height - 2); } });
+    }
+
+    function dft(values, bins) {
+      const size = values.length; const magnitudes = [];
+      for (let bin = 0; bin < bins; bin += 1) { let real = 0; let imaginary = 0; for (let sample = 0; sample < size; sample += 1) { const angle = -2 * Math.PI * bin * sample / size; real += values[sample] * Math.cos(angle); imaginary += values[sample] * Math.sin(angle); } magnitudes.push(Math.sqrt(real * real + imaginary * imaginary) / size); }
+      return magnitudes;
+    }
+
+    function drawFFT() {
+      const canvas = $('#fftCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); drawGrid(context, width, height, 6, 4); if (buffers.x.length < 256) return;
+      const magnitudes = dft(buffers.x.slice(-256), 40); const peak = Math.max(.001, ...magnitudes); const barWidth = width / magnitudes.length;
+      magnitudes.forEach((magnitude, bin) => { const normalized = Math.pow(magnitude / peak, .62); const barHeight = normalized * (height - 18); const gradient = context.createLinearGradient(0, height - barHeight, 0, height); gradient.addColorStop(0, '#ffb020'); gradient.addColorStop(1, 'rgba(255,176,32,.1)'); context.fillStyle = gradient; context.fillRect(bin * barWidth + 2, height - barHeight - 10, Math.max(1, barWidth - 4), barHeight); if (bin % 8 === 0) { context.fillStyle = 'rgba(108,133,142,.7)'; context.font = '8px IBM Plex Mono, monospace'; context.fillText(`${(bin * SAMPLE_RATE / 256).toFixed(0)}Hz`, bin * barWidth + 2, height - 2); } });
+      [1, 2, 3].forEach(order => { const frequency = sim.rpm / 60 * order; if (frequency > SAMPLE_RATE / 2) return; const x = frequency / (SAMPLE_RATE / 2) * width; context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height - 12); context.strokeStyle = 'rgba(255,68,51,.45)'; context.setLineDash([3, 3]); context.stroke(); context.setLineDash([]); context.fillStyle = 'rgba(255,68,51,.65)'; context.fillText(`${order}×`, x + 3, 11); });
+    }
+
+    function updateSpectrogram() {
+      if (buffers.x.length < 128) return; const magnitudes = dft(buffers.x.slice(-128), 44); const column = new Float32Array(44); magnitudes.forEach((value, index) => { column[index] = value; }); spectrogram.shift(); spectrogram.push(column);
+    }
+
+    function drawSpectrogram() {
+      const canvas = $('#specCanvas'); const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); const cellWidth = width / spectrogram.length; const cellHeight = height / 44; let peak = 1e-6; spectrogram.forEach(column => column.forEach(value => { peak = Math.max(peak, value); }));
+      spectrogram.forEach((column, time) => column.forEach((value, bin) => { const normalized = clamp(value / peak, 0, 1); const energy = Math.pow(normalized, .72); context.fillStyle = normalized > .02 ? `rgba(${Math.round(255 * energy)},${Math.round(150 * energy + 20 * (1 - energy))},${Math.round(40 * energy)},${.18 + energy * .82})` : 'rgb(14,22,26)'; context.fillRect(time * cellWidth, height - (bin + 1) * cellHeight, cellWidth + .6, cellHeight + .6); }));
+      context.font = '8.5px IBM Plex Mono, monospace'; context.fillStyle = 'rgba(108,133,142,.85)'; context.fillText(`${SAMPLE_RATE / 2} Hz`, 6, 12); context.fillText('0 Hz', 6, height - 5); context.textAlign = 'right'; context.fillText('NOW', width - 6, 12); context.textAlign = 'left';
+    }
+
+    function drawSpark(canvas, values, color) {
+      const { context, width, height } = canvasContext(canvas); context.clearRect(0, 0, width, height); const minimum = Math.min(...values); const maximum = Math.max(...values); const span = Math.max(1e-6, maximum - minimum); context.beginPath(); values.forEach((value, index) => { const x = index / (values.length - 1) * width; const y = height - 4 - (value - minimum) / span * (height - 10); index ? context.lineTo(x, y) : context.moveTo(x, y); }); context.strokeStyle = color; context.lineWidth = 1.5; context.stroke();
+    }
+
+    function renderFleet() {
+      const container = $('#fleet');
+      if (container.children.length !== fleet.length) { container.innerHTML = ''; fleet.forEach((asset, index) => { const card = document.createElement('div'); card.className = 'fleet-card'; card.innerHTML = `<div class="fleet-id">${asset.id}</div><div class="fleet-sub">${asset.line}</div><div class="fleet-row"><div class="fleet-health" id="fleetHealth${index}"></div><div class="pill ok" id="fleetPill${index}">NOMINAL</div></div><canvas id="fleetChart${index}" height="44"></canvas>`; container.appendChild(card); }); }
+      fleet.forEach((asset, index) => { const health = $(`#fleetHealth${index}`); const pill = $(`#fleetPill${index}`); const card = health.closest('.fleet-card'); health.innerHTML = `${asset.health.toFixed(1)}<span class="k"> HI</span>`; health.style.color = asset.health > 92 ? 'var(--green)' : asset.health > 78 ? 'var(--amber)' : 'var(--red)'; const status = asset.health > 92 ? ['ok', 'NOMINAL'] : asset.health > 78 ? ['high', 'DRIFT'] : ['crit', 'DEGRADED']; pill.className = `pill ${status[0]}`; pill.textContent = status[1]; card.classList.toggle('warn', asset.health <= 82); card.style.setProperty('--health', `${asset.health}%`); drawSpark($(`#fleetChart${index}`), asset.history, asset.health > 92 ? '#2fe08b' : asset.health > 78 ? '#ffb020' : '#ff4433'); });
+    }
+
+    /* ---------------- controls and replay ---------------- */
+      function setFault(fault, keepDataset = false) {
+       if (!keepDataset) { activateSyntheticSource(); }
+       sim.fault = fault;
+       $$('#faultButtons .fault').forEach(button => button.classList.toggle('on', button.dataset.fault === fault));
+       log('INFO', `SCENARIO → ${fault.toUpperCase()} · healthy-band comparison remains active`);
+     }
+
+     function resetSimulation() {
+       clearBuffers(); sim.phase = 0; sim.time = 0; sim.temp = 42; state.score = .021; state.alert = false; state.cleanWindows = 0; scoreHistory.fill(.021); healthHistory.splice(0, healthHistory.length, ...Array.from({ length: 160 }, () => ({ health: 98.4, rul: 214 })));
+       if (!sim.dataset) for (let index = 0; index < 1800; index += 1) generateSample();
+       log('INFO', `${sim.dataset ? 'DATASET REPLAY' : 'SIMULATION'} RESET · 1024-sample window will refill through the active source`);
+     }
+
+    function bindControls() {
+      $('#threshold').addEventListener('input', event => { state.threshold = Number(event.target.value) / 100; updateThresholdText(); log('INFO', `THRESHOLD GATE reconfigured → θ = ${state.threshold.toFixed(2)}`); });
+      $('#rpm').addEventListener('input', event => { sim.rpm = Number(event.target.value); $('#rpmValue').textContent = sim.rpm; });
+      $('#load').addEventListener('input', event => { sim.load = Number(event.target.value) / 100; $('#loadValue').textContent = `${event.target.value} %`; });
+      $('#noise').addEventListener('input', event => { sim.noise = Number(event.target.value) / 100; $('#noiseValue').textContent = sim.noise.toFixed(2); });
+      $$('#faultButtons .fault').forEach(button => button.addEventListener('click', () => setFault(button.dataset.fault)));
+      $('#injectFault').addEventListener('click', () => { const choices = ['bearing', 'outerrace', 'misalign', 'imbalance', 'overheat']; const fault = choices[Math.floor(random() * choices.length)]; setFault(fault); log('WARN', `MANUAL FAULT INJECTION · ${fault.toUpperCase()} signature synthesised on sensor stream`); });
+      $('#inspectWorkflow').addEventListener('click', () => $('#pipeline').scrollIntoView({ behavior: 'smooth', block: 'center' }));
+      $('#advanceStage').addEventListener('click', () => { let incident = activeIncident(); if (!incident) incident = openIncident(sim.fault === 'healthy' ? 'bearing' : sim.fault, Math.max(.58, state.score)); advanceIncident(incident); });
+      $('#newIncident').addEventListener('click', () => { const fault = sim.fault === 'healthy' ? 'imbalance' : sim.fault; openIncident(fault, Math.max(.6, state.score)); });
+       $('#closeAll').addEventListener('click', () => { let closed = 0; incidents.forEach(incident => { if (incident.status === 'OPEN') { incident.status = 'CLOSED'; incident.stage = 5; incident.mttr = Math.max(1, Math.round((Date.now() - new Date(incident.ts).getTime()) / 60000)); incident.events.push({ t: new Date().toISOString(), c: 'ok', m: 'Manually closed by operator' }); syncIncidentSnapshot(incident); closed += 1; } }); saveIncidents(); renderLedger(); renderIncidentInvestigation(); renderTimeline(); renderStages(); computeStats(); log('INFO', `BULK CLOSE · ${closed} ticket(s) sealed`); });
+       $('#toggleAuto').addEventListener('click', event => { state.autoWorkflow = !state.autoWorkflow; event.target.textContent = `Auto-Progression: ${state.autoWorkflow ? 'ON' : 'OFF'}`; $('#workflowTag').innerHTML = state.autoWorkflow ? '<span class="dot g pulse"></span>AUTO' : 'MANUAL'; const incident = activeIncident(); if (incident) { syncIncidentSnapshot(incident); saveIncidents(); renderIncidentInvestigation(); } log('INFO', `WORKFLOW auto-progression ${state.autoWorkflow ? 'enabled' : 'disabled'}`); });
+       $('#ledgerSearch').addEventListener('input', event => { state.search = event.target.value; renderLedger(); });
+       $$('.filter').forEach(button => button.addEventListener('click', () => { $$('.filter').forEach(item => item.classList.remove('on')); button.classList.add('on'); state.filter = button.dataset.filter; renderLedger(); }));
+       $('#downloadIncidentReport').addEventListener('click', downloadSelectedIncidentReport);
+        $('#ledgerBody').addEventListener('click', event => {
+        const button = event.target.closest('.action'); if (!button) return; const incident = incidents.find(item => item.id === button.dataset.id); if (!incident) return;
+        if (button.dataset.action === 'advance') advanceIncident(incident);
+         if (button.dataset.action === 'close') { incident.status = 'CLOSED'; incident.stage = 5; incident.mttr = Math.max(1, Math.round((Date.now() - new Date(incident.ts).getTime()) / 60000)); incident.events.push({ t: new Date().toISOString(), c: 'ok', m: 'Manually closed by operator' }); syncIncidentSnapshot(incident); saveIncidents(); renderLedger(); renderIncidentInvestigation(); renderTimeline(); renderStages(); computeStats(); log('OK', `${incident.id} closed manually`); }
+          if (button.dataset.action === 'detail') selectIncident(incident.id, { scroll: true });
+       });
+       $('#exportLedger').addEventListener('click', () => { const rows = [['ID', 'DATE', 'TIME', 'ASSET', 'CODE', 'FAULT TYPE', 'SOURCE', 'SOURCE LABEL', 'FAULT FAMILY', 'SEVERITY', 'SCORE', 'STAGE', 'STATUS']]; incidents.forEach(incident => { const date = new Date(incident.ts); rows.push([incident.id, fmtDate(date), fmtTime(date), incident.machine, incident.code, incident.type, incident.source || 'SYNTHETIC', incident.sourceLabel || 'SYNTHETIC', incident.faultFamily || 'SYNTHETIC', incident.severity, incident.score, STAGE_NAMES[Math.min(incident.stage, 5)], incident.status]); }); const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'axon_edge_incident_ledger.csv'; link.click(); URL.revokeObjectURL(link.href); log('INFO', `EXPORT · ${incidents.length} incident records written to CSV`); });
+       $('#scaleSwitch').addEventListener('click', event => { event.currentTarget.classList.toggle('on'); sim.adaptiveScale = event.currentTarget.classList.contains('on'); log('INFO', `ADAPTIVE SCALING ${sim.adaptiveScale ? 'ENABLED' : 'DISABLED'}`); });
+       const dropZone = $('#dropZone'); const input = $('#fileInput'); dropZone.addEventListener('click', () => input.click()); ['dragenter', 'dragover'].forEach(type => dropZone.addEventListener(type, event => { event.preventDefault(); dropZone.classList.add('over'); })); ['dragleave', 'drop'].forEach(type => dropZone.addEventListener(type, event => { event.preventDefault(); dropZone.classList.remove('over'); })); dropZone.addEventListener('drop', event => { const file = event.dataTransfer.files && event.dataTransfer.files[0]; if (file) readFile(file); }); input.addEventListener('change', event => { const file = event.target.files && event.target.files[0]; if (file) readFile(file); });
+       $$('#sourceGrid .source-card').forEach(card => card.addEventListener('click', () => { if (card.dataset.source === 'synthetic') { setFault('healthy'); resetSimulation(); return; } loadRealDataset(card.dataset.source); }));
+       $$('#datasetGrid .dataset').forEach(card => card.addEventListener('click', () => { $$('#datasetGrid .dataset').forEach(item => item.classList.remove('active')); card.classList.add('active'); const fault = card.dataset.name.includes('Healthy') ? 'healthy' : card.dataset.fault; setFault(fault); const bar = card.querySelector('.bar i'); let progress = 0; const timer = setInterval(() => { progress += 18 + random() * 22; bar.style.width = `${Math.min(100, progress)}%`; if (progress >= 100) { clearInterval(timer); $('#datasetTag').textContent = 'READY'; log('OK', `${card.dataset.name.toUpperCase()} mapped → normal-band replay ready`); } }, 100); $('#datasetTag').textContent = 'INGESTING'; log('INFO', `MOUNT scenario "${card.dataset.name}" · healthy envelope comparison queued`); }));
+       $('#resetSimulation').addEventListener('click', resetSimulation);
+     }
+
+     function readFile(file) {
+       log('INFO', `READ ${file.name} · ${(file.size / 1024).toFixed(1)} KB`);
+       const reader = new FileReader(); reader.onload = () => { if (!ingestCSV(String(reader.result), file.name, { sourceKey: 'user', path: file.name })) { activateSyntheticSource(); log('WARN', `USER DATASET REJECTED · ${file.name} · synthetic simulation retained`); } }; reader.onerror = () => { activateSyntheticSource(); log('FAULT', `READ ERROR · ${file.name} · synthetic simulation retained`); }; reader.readAsText(file);
+     }
+
+    function updateUI() {
+      const className = state.score >= state.threshold ? 'hot' : state.score >= state.threshold * .62 ? 'warm' : 'cool';
+      const score = $('#scoreBig'); score.textContent = state.score.toFixed(3); score.className = `score-big ${className}`;
+       const activeFeatureCount = sim.dataset && sim.dataset.kind === 'bearing' ? BEARING_FEATURE_FIELDS.length : FEATURE_COUNT;
+       $('#heroScore').textContent = state.score.toFixed(3); $('#featuresOut').textContent = `${state.featuresOut} / ${activeFeatureCount}`; $('#confidenceValue').textContent = `${state.confidence.toFixed(1)} %`;
+      const tag = $('#scoreTag'); tag.textContent = state.alert ? 'ALERT' : state.score >= state.threshold * .62 ? 'DRIFT' : 'NOMINAL'; tag.className = `tag ${state.alert ? 'crit' : state.score >= state.threshold * .62 ? 'warn' : 'live'}`;
+      const decision = $('#heroDecision'); decision.textContent = state.alert ? 'ALERT' : 'NOMINAL'; decision.className = `v ${state.alert ? '' : 'g'}`; $('#heroHealth').textContent = state.health.toFixed(1); $('#heroHealth').className = `v ${state.health > 90 ? 'g' : state.health > 72 ? 'a' : ''}`; $('#kpiHealth').innerHTML = `${state.health.toFixed(1)}<u>%</u>`; $('#kpiRul').innerHTML = `${Math.round(state.rul)}<u>h</u>`;
+      const alertBox = $('#alertBox'); const relay = $('#relayWrap'); alertBox.classList.toggle('alarmed', state.alert); relay.classList.toggle('alarm', state.alert); $('#relayState').textContent = state.alert ? 'ENERGISED' : 'STANDBY'; $('#armature').setAttribute('y2', state.alert ? '44' : '26'); $('#contact').setAttribute('fill', state.alert ? '#ff4433' : '#2c4048');
+      const cpu = state.alert ? 31 + random() * 8 : 15 + random() * 7; $('#cpuValue').textContent = `${cpu.toFixed(0)} %`; $('#cpuBar').style.width = `${cpu}%`; $('#ramValue').textContent = `${(39.8 + random() * 3.4).toFixed(1)} KB`; $('#ramBar').style.width = `${31 + random() * 4}%`;
+      const hours = String(Math.floor(state.uptime / 3600)).padStart(2, '0'); const minutes = String(Math.floor(state.uptime / 60) % 60).padStart(2, '0'); const seconds = String(Math.floor(state.uptime) % 60).padStart(2, '0'); $('#ticker').textContent = ` ${sim.dataset ? 'DATASET REPLAY' : 'SIMULATION'} · 1024 SAMPLE WINDOW · THRESHOLD ${state.threshold.toFixed(2)} · ALERTS ${state.alerts} · UPTIME ${hours}:${minutes}:${seconds} ·  ${sim.dataset ? 'DATASET REPLAY' : 'SIMULATION'} · 1024 SAMPLE WINDOW · THRESHOLD ${state.threshold.toFixed(2)} · ALERTS ${state.alerts} · UPTIME ${hours}:${minutes}:${seconds} ·`;
+    }
+
+    /* ---------------- main loop ---------------- */
+    let lastFrame = performance.now(); let featureAccumulator = 0; let healthAccumulator = 0; let fleetAccumulator = 0; let chartFrame = 0; let spectrogramAccumulator = 0;
+
+    function tick(now) {
+      const delta = Math.min(.12, (now - lastFrame) / 1000); lastFrame = now; state.uptime += delta;
+      const samples = Math.max(1, Math.floor(SAMPLE_RATE * delta)); for (let index = 0; index < samples; index += 1) { if (!consumeDatasetSample()) generateSample(); }
+      featureAccumulator += delta; healthAccumulator += delta; fleetAccumulator += delta; spectrogramAccumulator += delta;
+       if (featureAccumulator >= .25 && buffers.x.length >= WINDOW) { featureAccumulator = 0; if (!sim.dataset || sim.dataset.kind !== 'bearing') updateDetector(extractFeatures()); }
+      if (healthAccumulator >= .5) { healthAccumulator = 0; const target = 100 - clamp(state.score, 0, 1) * 46 - (state.alert ? 11 : 0) + (sim.fault === 'healthy' ? 1.6 : -4); state.health = clamp(state.health + (target - state.health) * .14, 5, 100); state.rul = clamp(state.rul + (state.health * 2.42 - state.rul) * .09, 2, 260); healthHistory.push({ health: state.health, rul: state.rul }); if (healthHistory.length > 160) healthHistory.shift(); }
+      if (fleetAccumulator >= 1) { fleetAccumulator = 0; fleet[0].health = state.health; fleet.slice(1).forEach(asset => { const pull = asset.health > 82 ? -.55 : .85; asset.health = clamp(asset.health + pull + (random() - .5) * 1.6, 52, 99.6); }); fleet.forEach(asset => { asset.history.push(asset.health); if (asset.history.length > 60) asset.history.shift(); }); renderFleet(); renderCalendar(); computeStats(); }
+      if (spectrogramAccumulator >= .4) { spectrogramAccumulator = 0; updateSpectrogram(); }
+      updateUI();
+      if (chartFrame % 2 === 0) { drawHero(now); drawWave(); drawGauge(); drawScore(); drawHealth(); drawHistogram(); drawFFT(); drawSpectrogram(); }
+      chartFrame += 1; requestAnimationFrame(tick);
+    }
+
+    setInterval(() => { const incident = activeIncident(); if (state.autoWorkflow && incident && incident.stage < 5) advanceIncident(incident); }, 16000);
+    setInterval(() => { if (!state.alert && random() < .32) log('INFO', `TICK · window ${WINDOW} · score ${state.score.toFixed(3)} · latency ${state.inferenceMs.toFixed(2)} ms`); }, 7000);
+    setInterval(() => { const now = new Date(); $('#clock').textContent = fmtTime(now); }, 1000);
+
+     loadIncidents(); renderFeatureList(); renderLedger(); renderIncidentInvestigation(); renderTimeline(); renderStages(); renderFleet(); renderCalendar(); computeStats(); updateThresholdText(); bindControls();
+    $('#dateStamp').textContent = `SESSION DATE ${fmtDate(new Date())} · PLANT 04 / LINE A`;
+    window.addEventListener('scroll', () => { const progress = window.scrollY / Math.max(1, document.body.scrollHeight - window.innerHeight); $('#scrollProgress').style.width = `${(progress * 100).toFixed(1)}%`; }, { passive: true });
+    const revealObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => entries.forEach(entry => { if (entry.isIntersecting) { entry.target.classList.add('in'); revealObserver.unobserve(entry.target); } }), { threshold: .1 }) : null;
+    $$('.reveal').forEach(element => revealObserver ? revealObserver.observe(element) : element.classList.add('in'));
+    $('#clock').textContent = fmtTime(new Date());
+    resetSimulation();
+    const bootScenario = new URLSearchParams(window.location.search).get('scenario');
+    if (bootScenario && Object.prototype.hasOwnProperty.call(FAULTS, bootScenario)) setFault(bootScenario);
+     log('INFO', 'BOOT browser-only simulation · 1024-sample window @ 1 kHz · firmware labels are reference targets');
+    log('OK', `BASELINE LEARNED · ${baseline.samples} healthy windows · normal band μ ± 2.5σ`);
+    log('OK', 'THRESHOLD ENGINE READY · alerts require score crossing and clear after 3 clean windows');
+    log('INFO', 'WORKFLOW ARMED · dataset drop zone ready for real CSV/TSV replay');
+    requestAnimationFrame(tick);
+  })();
+  </script>
+</body>
+</html>
